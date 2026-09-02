@@ -98,6 +98,8 @@ export function SuggestionsSidebar({
                       title: s.title,
                       source: s.publisher,
                       sourceUrl: s.sourceUrl ?? "",
+                      image: s.image,
+                      category: s.kicker,
                     })
                   }
                   className="group flex w-full items-start gap-3 text-left"

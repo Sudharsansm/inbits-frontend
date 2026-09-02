@@ -197,12 +197,11 @@ function PostCardInner({ post }: { post: FeedItem }) {
    */
 
   const readPost = () => {
-    openArticle({
-      id: post.id,
-      title: post.title,
-      source: post.source,
-      sourceUrl: post.sourceUrl,
-    });
+    // Pass the full item, not just id/title/source/sourceUrl — it's
+    // already loaded here in full (excerpt, image, content, etc.), and
+    // seeding /post/:id with all of it is what lets that page render for
+    // real on the very first frame instead of a loading skeleton.
+    openArticle(post);
   };
 
   /*

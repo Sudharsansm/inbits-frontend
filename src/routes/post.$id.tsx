@@ -1,12 +1,14 @@
-import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { fetchArticle, fetchFeed, type FeedItem } from "@/lib/api";
+import { articleCache, type ArticleData } from "@/lib/articleCache";
 import { formatRelativeTime } from "@/lib/format";
 import { sourceOriginLabel } from "@/lib/sourceOrigin";
 import { useSavedPosts } from "@/lib/savedPosts";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { useTranslated } from "@/lib/i18n";
+import { ArticleSkeleton } from "@/components/common/FeedSkeleton";
 import {
   ArrowLeft,
   Bookmark,
@@ -22,55 +24,104 @@ import {
 import { ShareButton } from "@/components/post/ShareButton";
 
 export const Route = createFileRoute("/post/$id")({
-  // Same reasoning as Home's staleTime: this article's own content
-  // doesn't change once written, and its "related stories" list doesn't
-  // need to reload on every single visit. Caching for a few minutes
-  // means tapping back into a story you already opened (from Related, a
-  // channel, or search) is instant rather than re-fetching every time.
-  staleTime: 5 * 60 * 1000,
-  // Runs on the server: fetches the real article by id, plus a handful of
-  // same-category stories for "Related", from the live backend — nothing
-  // here is looked up from bundled mock data anymore.
-  loader: async ({ params }) => {
-    const post = await fetchArticle(params.id);
-    if (!post) throw notFound();
+  head: () => ({
+    // No loader means no per-article data at the time this runs, so this
+    // is a generic fallback rather than the real headline/excerpt. The
+    // real title is set on `document.title` client-side once the article
+    // loads (see PostPage below) so the browser tab is still correct —
+    // the trade-off is that a link shared *before* anyone has visited
+    // this exact URL server-side won't carry a story-specific preview
+    // card (og:title/og:description) the way it did with a blocking
+    // loader. That trade favors the page never feeling stuck "loading"
+    // over a richer social-preview card — the same call already made for
+    // Home, Search, and Updates.
+    meta: [{ title: "Story · InBits" }],
+  }),
+  // Intentionally no loader. A blocking loader here meant every tap on a
+  // headline — the single most common action in the app — sat on a
+  // network round-trip (article + a feed snapshot for "Related") before
+  // the route would even render, which is exactly the "worst feel" of a
+  // page that looks stuck. Now the route renders instantly: for every
+  // in-app tap (Home, Updates, Search, Saved, Related, rails), the
+  // article the reader tapped was already seeded into the shared cache
+  // (see lib/articleCache.ts + lib/articleViewer.tsx) *before* this route
+  // even mounted, so real content — headline, image, excerpt — is on
+  // screen on the very first frame, with no skeleton at all. The full
+  // body and real "Related" list are then filled in silently in the
+  // background. Only a genuinely cold visit — a direct/shared link with
+  // nothing seeded yet — falls back to fetching from scratch, and shows
+  // ArticleSkeleton (shaped like the real layout) while that happens.
+  component: PostPage,
+});
 
-    let related: FeedItem[] = [];
-    try {
-      const { items } = await fetchFeed(post.category);
-      related = items.filter((p) => p.id !== post.id).slice(0, 3);
-    } catch {
-      // Related stories are a nice-to-have — an unreachable backend here
-      // shouldn't take down the article itself.
-    }
+function PostPage() {
+  const { id } = Route.useParams();
+  const router = useRouter();
+  const [data, setData] = useState<ArticleData | null>(() => articleCache.get(id) ?? null);
+  const [notFound, setNotFound] = useState(false);
+  const [errored, setErrored] = useState(false);
 
-    return { post, related };
-  },
-  head: ({ loaderData }) => {
-    if (!loaderData) {
-      return {
-        meta: [{ title: "Story not found · InBits" }, { name: "robots", content: "noindex" }],
-      };
-    }
-    const { post } = loaderData;
-    return {
-      meta: [
-        { title: `${post.title} · InBits` },
-        { name: "description", content: post.excerpt },
-        { property: "og:title", content: post.title },
-        { property: "og:description", content: post.excerpt },
-        { property: "og:image", content: post.image },
-        { name: "twitter:card", content: "summary_large_image" },
-      ],
+  useEffect(() => {
+    setNotFound(false);
+    setErrored(false);
+
+    const seeded = articleCache.get(id);
+    setData(seeded ?? null);
+
+    // Already have the real thing (fetched in full on a previous visit
+    // this session) — nothing left to do.
+    if (seeded?.complete) return;
+
+    let cancelled = false;
+
+    // Either nothing is seeded yet (a cold/direct link) or only a thin
+    // stand-in is (tapped from a feed/rail). Either way, fetch the real
+    // article + related list in the background. When a stand-in is
+    // already rendering, this never shows a loading state — the page
+    // already has something real-looking on screen, and just gets
+    // upgraded in place the moment this resolves.
+    Promise.all([
+      fetchArticle(id),
+      fetchFeed("All").catch(() => ({ items: [] as FeedItem[], total: 0 })),
+    ])
+      .then(([post, feedSnapshot]) => {
+        if (cancelled) return;
+        if (!post) {
+          // A 404 on the full fetch only matters if we had nothing to
+          // show in the first place — a seeded stand-in came from a
+          // story that was genuinely live moments ago, so leave it on
+          // screen rather than yanking it away for a "not found" page.
+          if (!seeded) setNotFound(true);
+          return;
+        }
+        const related = feedSnapshot.items
+          .filter((p) => p.id !== post.id && p.category === post.category)
+          .slice(0, 3);
+        const result: ArticleData = { post, related, complete: true };
+        articleCache.set(id, result);
+        setData(result);
+      })
+      .catch(() => {
+        if (!cancelled && !seeded) setErrored(true);
+      });
+
+    return () => {
+      cancelled = true;
     };
-  },
-  notFoundComponent: () => (
-    <AppShell title="Not found">
-      <div className="px-6 py-16 text-center">
-        <h1 className="serif text-2xl font-bold">Story not found</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          It may have scrolled out of the live buffer, been moved, or unpublished.
-        </p>
+  }, [id]);
+
+  useEffect(() => {
+    if (data) document.title = `${data.post.title} · InBits`;
+  }, [data]);
+
+  if (notFound) {
+    return (
+      <AppShell title="Not found">
+        <div className="px-6 py-16 text-center">
+          <h1 className="serif text-2xl font-bold">Story not found</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            It may have scrolled out of the live buffer, been moved, or unpublished.
+          </p>
           <button
             type="button"
             onClick={() => window.history.back()}
@@ -78,18 +129,20 @@ export const Route = createFileRoute("/post/$id")({
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back
           </button>
-      </div>
-    </AppShell>
-  ),
-  errorComponent: ({ reset }) => {
-    const router = useRouter();
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (errored) {
     return (
       <AppShell title="Error">
         <div className="px-6 py-16 text-center">
           <h1 className="serif text-2xl font-bold">Something broke</h1>
           <button
             onClick={() => {
-              reset();
+              articleCache.delete(id);
+              setErrored(false);
               router.invalidate();
             }}
             className="mt-6 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
@@ -99,12 +152,14 @@ export const Route = createFileRoute("/post/$id")({
         </div>
       </AppShell>
     );
-  },
-  component: PostPage,
-});
+  }
 
-function PostPage() {
-  const { post, related } = Route.useLoaderData();
+  if (!data) return <ArticleSkeleton />;
+
+  return <PostArticle post={data.post} related={data.related} />;
+}
+
+function PostArticle({ post, related }: { post: FeedItem; related: FeedItem[] }) {
   const [progress, setProgress] = useState(0);
   const { has, toggleSave } = useSavedPosts();
   const { openArticle } = useArticleViewer();
@@ -315,14 +370,7 @@ function PostPage() {
               {related.map((p) => (
                 <li key={p.id}>
                   <button
-                    onClick={() =>
-                      openArticle({
-                        id: p.id,
-                        title: p.title,
-                        source: p.source,
-                        sourceUrl: p.sourceUrl,
-                      })
-                    }
+                    onClick={() => openArticle(p)}
                     className="flex w-full items-start gap-3 rounded-xl bg-card p-3 text-left transition hover:bg-secondary"
                   >
                     <img

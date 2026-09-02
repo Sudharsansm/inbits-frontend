@@ -45,13 +45,13 @@ function Updates() {
     hasMore,
     loadMore,
     refresh,
-    connected,
+    showEmptyState,
   } = useLiveFeed({ category: "All", pageSize: 6, cacheKey: "updates" });
 
   // Skip anything already shown on Home or Search this session — same
   // shared registry Home writes to. Stands is still the place to find
   // every article regardless of what's been seen here.
-  const unseenPool = useMemo(() => excludeSeen(liveItems, 8), [liveItems]);
+  const unseenPool = useMemo(() => excludeSeen(liveItems, "updates", 8), [liveItems]);
 
   // Same live pool of articles the Home feed draws from, but reordered so
   // Updates doesn't just read as a scrollable copy of Home: round-robin
@@ -61,7 +61,7 @@ function Updates() {
   const posts = useMemo(() => diversifyBySource(unseenPool), [unseenPool]);
 
   useEffect(() => {
-    if (posts.length > 0) markSeen(posts.map((p) => p.id));
+    if (posts.length > 0) markSeen(posts.map((p) => p.id), "updates");
   }, [posts]);
   const [liked, setLiked] = useState<Record<string, boolean>>({});
   const { recordLike } = useInterestProfile();
@@ -192,7 +192,7 @@ function Updates() {
           />
         </div>
 
-        {posts.length === 0 && !connected && <ReelSkeleton />}
+        {posts.length === 0 && !showEmptyState && <ReelSkeleton />}
         {posts.map((p) => {
           const isLiked = liked[p.id];
           const isSaved = isSavedId(p.id);

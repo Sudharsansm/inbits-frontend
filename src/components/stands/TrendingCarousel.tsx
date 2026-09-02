@@ -35,7 +35,14 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
           <button
             key={s.id}
             onClick={() =>
-              openArticle({ id: s.id, title: s.title, source: s.source, sourceUrl: s.sourceUrl })
+              openArticle({
+                id: s.id,
+                title: s.title,
+                source: s.source,
+                sourceUrl: s.sourceUrl,
+                image: s.image,
+                category: s.category,
+              })
             }
             className="relative block w-full flex-none snap-center overflow-hidden rounded-2xl text-left"
           >

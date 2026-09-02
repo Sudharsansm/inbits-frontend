@@ -37,13 +37,16 @@ const feedCache = new Map<string, CacheEntry>();
  *
  *  - Opening the app / returning to a page you already loaded shows what
  *    you already had, instantly — no reset, no spinner.
- *  - Articles scraped while you're on the page do NOT get injected into
- *    the list automatically — that would yank content around under
- *    someone mid-scroll or mid-read. They're held quietly until
- *    `refresh()` is called (pull-to-refresh, a manual refresh action).
- *  - When you do refresh, anything new is appended after what's already
- *    loaded — it shows up further down as you keep scrolling, instead of
- *    jumping to the top and shoving everything else down.
+ *  - Articles scraped while you're on the page are pushed over the socket
+ *    in real time and appended to the *end* of the feed immediately, so
+ *    scrolling down never runs out of content — the feed tops itself up
+ *    continuously instead of capping out at whatever loaded first.
+ *    Appending at the end (never the top) means this can never yank
+ *    content the reader is currently looking at.
+ *  - `loadMore()` (driven by the infinite-scroll sentinel) asks the
+ *    backend for the next page and appends it the same way, so scrolling
+ *    to the bottom keeps extending the feed rather than ever showing a
+ *    hard "end".
  */
 export function useLiveFeed({
   category = "All",
@@ -57,6 +60,23 @@ export function useLiveFeed({
 
   const [items, setItems] = useState<FeedItem[]>(seed);
   const [connected, setConnected] = useState(false);
+  // `connected` only reflects the socket handshake — it flips true the
+  // instant `ws.onopen` fires, which can easily happen *before* any real
+  // data (the "initial" message, or the REST fallback) has come back.
+  // Screens were using `connected` to decide whether to render the
+  // "No stories yet" empty state, so on a fresh deploy (socket connects
+  // fast, first payload takes a beat longer) that message flashed before
+  // there was ever a genuine reason to show it. `loaded` tracks whether a
+  // real data attempt has actually settled at least once, and is what the
+  // empty-state check below should key off of instead.
+  const [loaded, setLoaded] = useState(seed.length > 0);
+  // Even once `loaded` is true, a brand-new deployment can have a crawler
+  // that simply hasn't produced its first batch yet — that's a real "zero
+  // items" state, but it's temporary, not broken. Rather than declare
+  // "No stories yet" the moment the first empty response lands, give it a
+  // grace window to fill in on its own (new items arrive over the same
+  // socket in real time) before showing any empty-state copy at all.
+  const [showEmptyState, setShowEmptyState] = useState(false);
   const [hasMore, setHasMore] = useState(cached?.hasMore ?? true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -69,6 +89,24 @@ export function useLiveFeed({
   const hasMoreRef = useRef(cached?.hasMore ?? true);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttempt = useRef(0);
+  const emptyStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Arm/disarm the "genuinely empty" grace window whenever loaded-ness or
+  // the item count changes, instead of re-deriving it inline on render.
+  useEffect(() => {
+    if (emptyStateTimer.current) {
+      clearTimeout(emptyStateTimer.current);
+      emptyStateTimer.current = null;
+    }
+    if (loaded && items.length === 0) {
+      emptyStateTimer.current = setTimeout(() => setShowEmptyState(true), 8000);
+    } else {
+      setShowEmptyState(false);
+    }
+    return () => {
+      if (emptyStateTimer.current) clearTimeout(emptyStateTimer.current);
+    };
+  }, [loaded, items.length]);
 
   const setItemsTracked = useCallback(
     (updater: FeedItem[] | ((prev: FeedItem[]) => FeedItem[])) => {
@@ -125,6 +163,9 @@ export function useLiveFeed({
         })
         .catch(() => {
           /* backend unreachable — keep whatever is currently on screen */
+        })
+        .finally(() => {
+          if (!cancelled) setLoaded(true);
         });
     };
 
@@ -173,11 +214,21 @@ export function useLiveFeed({
             }
             hasMoreRef.current = true;
             setHasMore(true);
+            setLoaded(true);
             break;
           case "new_item":
-            // Anything scraped after the first load queues quietly instead
-            // of jumping into the feed the user is currently reading.
-            queuePending([msg.item]);
+            // Real-time push from the crawler: append straight onto the
+            // *end* of the feed and let the infinite-scroll sentinel pick
+            // it up naturally as the reader scrolls down — this is what
+            // keeps the feed continuously topped up with fresh stories
+            // instead of capping out once the first page is exhausted.
+            // Appending at the end (never the top) is what makes this
+            // safe to do live: it can never yank content the reader is
+            // currently looking at, since nothing above their scroll
+            // position ever moves.
+            mergeUnique([msg.item], "end");
+            cursorRef.current += 1;
+            setLoaded(true);
             break;
           case "more_items":
             mergeUnique(msg.items, "end");
@@ -283,5 +334,21 @@ export function useLiveFeed({
     }
   }, [category, mergeUnique, setItemsTracked]);
 
-  return { items, connected, hasMore, loadingMore, loadMore, refreshing, refresh };
+  return {
+    items,
+    connected,
+    // `loaded`: a real data attempt (REST fallback or the socket's first
+    // message) has settled at least once — use this, not `connected`, to
+    // decide whether "empty" is even a meaningful thing to check yet.
+    loaded,
+    // `showEmptyState`: still zero items after `loaded` AND after the
+    // grace window above has passed. This is the one to key an actual
+    // "No stories yet" message off of.
+    showEmptyState,
+    hasMore,
+    loadingMore,
+    loadMore,
+    refreshing,
+    refresh,
+  };
 }

@@ -84,17 +84,7 @@ function SavedPage() {
           <ul className="space-y-3">
             {posts.map((p) => (
               <li key={p.id} className="flex gap-3 rounded-2xl border border-border bg-card p-3">
-                <button
-                  onClick={() =>
-                    openArticle({
-                      id: p.id,
-                      title: p.title,
-                      source: p.source,
-                      sourceUrl: p.sourceUrl,
-                    })
-                  }
-                  className="min-w-0 flex-1 text-left"
-                >
+                <button onClick={() => openArticle(p)} className="min-w-0 flex-1 text-left">
                   <div className="text-[10px] uppercase tracking-[0.16em] text-primary">
                     {p.category}
                   </div>

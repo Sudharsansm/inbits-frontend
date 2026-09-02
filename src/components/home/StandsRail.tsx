@@ -49,6 +49,8 @@ export function StandsRail({ showcase }: { showcase: ShowcasePanel[] }) {
                         title: s.title,
                         source: panel.publisher,
                         sourceUrl: s.sourceUrl ?? "",
+                        image: s.image,
+                        category: s.kicker,
                       })
                     }
                     className="flex w-full items-start gap-3 py-3.5 text-left transition hover:opacity-80"

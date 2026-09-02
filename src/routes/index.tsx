@@ -50,7 +50,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const { items, hasMore, connected, loadMore, refresh } = useLiveFeed({
+  const { items, hasMore, connected, showEmptyState, loadMore, refresh } = useLiveFeed({
     category: "All",
     pageSize: 10,
   });
@@ -61,7 +61,7 @@ function Home() {
   // is the one page meant to hold everything regardless of what's been
   // seen. Falls back to the full pool if there isn't enough unseen
   // content yet (e.g. first page opened this session).
-  const feedPool = useMemo(() => excludeSeen(items, 10), [items]);
+  const feedPool = useMemo(() => excludeSeen(items, "home", 10), [items]);
 
   // Articles already sitting in the main feed's visible window — used to
   // keep every in-feed suggestion rail from just echoing headlines the
@@ -99,7 +99,7 @@ function Home() {
   // Mark whatever the main feed is actually displaying as "seen" so
   // Updates/Search know to show something else.
   useEffect(() => {
-    if (feedPool.length > 0) markSeen(feedPool.slice(0, 24).map((i) => i.id));
+    if (feedPool.length > 0) markSeen(feedPool.slice(0, 24).map((i) => i.id), "home");
   }, [feedPool]);
 
   useEffect(() => {
@@ -147,8 +147,16 @@ function Home() {
 
       {/* Instagram-style vertical post feed, backed live by the crawler. */}
       <section className="flex flex-col">
-        {feedPool.length === 0 && !connected && <FeedSkeleton />}
-        {feedPool.length === 0 && connected && (
+        {/* Keep showing the skeleton — not a blank/empty message — for as
+            long as we haven't genuinely confirmed there's nothing to show.
+            `loaded` alone flips true the instant the first REST/WS
+            response lands, even if that response was empty (e.g. a
+            crawler that just started after a fresh deploy); `showEmptyState`
+            only becomes true after that emptiness has held for several
+            seconds, giving real-time new_item pushes a chance to fill the
+            feed in before declaring it empty. */}
+        {feedPool.length === 0 && !showEmptyState && <FeedSkeleton />}
+        {feedPool.length === 0 && showEmptyState && (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">
             No stories yet — check back in a moment.
           </p>

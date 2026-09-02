@@ -112,6 +112,10 @@ function ChannelPage() {
                     title: s.title,
                     source: channel.name,
                     sourceUrl: s.sourceUrl ?? "",
+                    image: s.image,
+                    excerpt: s.summary,
+                    category: s.category,
+                    readTime: s.readTime,
                   })
                 }
                 className="flex w-full items-start gap-3 rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition hover:bg-secondary"

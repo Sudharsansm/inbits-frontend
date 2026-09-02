@@ -48,6 +48,9 @@ export function JournalTab({
                     title: a.title,
                     source: a.source,
                     sourceUrl: a.sourceUrl ?? "",
+                    image: a.image,
+                    excerpt: a.summary,
+                    readTime: a.readTime,
                   })
                 }
                 className="flex w-full items-start gap-3 rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition hover:bg-secondary"

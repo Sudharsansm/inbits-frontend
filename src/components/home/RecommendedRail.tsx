@@ -31,14 +31,7 @@ export function RecommendedRail({ picks }: { picks: ScoredItem[] }) {
         renderItem={({ item, reason }, key) => (
           <button
             key={key}
-            onClick={() =>
-              openArticle({
-                id: item.id,
-                title: item.title,
-                source: item.source,
-                sourceUrl: item.sourceUrl,
-              })
-            }
+            onClick={() => openArticle(item)}
             className="group w-44 flex-none text-left"
           >
             <div className="relative overflow-hidden rounded-xl">

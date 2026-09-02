@@ -49,7 +49,10 @@ function UpdateReelInner({
   const [title, excerpt] = useTranslated([p.title, p.excerpt]);
   useShortLoop(audioRef);
   const readPost = () =>
-    openArticle({ id: p.id, title: p.title, source: p.source, sourceUrl: p.sourceUrl });
+    // Full item, already loaded in full here — see PostCard's readPost
+    // for why this (not a trimmed id/title/source/sourceUrl) is what
+    // makes /post/:id open instantly.
+    openArticle(p);
 
   useEffect(() => {
     const audio = audioRef.current;

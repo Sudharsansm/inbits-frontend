@@ -165,6 +165,29 @@ function RootComponent() {
     navigator.serviceWorker.register("/sw.js").catch((error) => {
       console.error("Service worker registration failed", error);
     });
+
+    // sw.js calls skipWaiting() + clients.claim() as soon as a new
+    // version activates, so a tab that's already open can get handed
+    // over to the new service worker mid-session. That tab is still
+    // running the *old* build's JS, though — any lazy chunk it fetches
+    // after the handover can 404 against the new deploy (old hashed
+    // filenames no longer exist on the server), which is exactly what
+    // showed up as "the app just sits there after I open it, I have to
+    // refresh manually to get it working". Reloading once, automatically,
+    // the moment control actually changes brings the tab up to the new
+    // build the same way a fresh visit would — this is the standard fix
+    // for that class of PWA bug, and it's how Instagram/other installed
+    // web apps avoid ever showing a stale, broken screen.
+    let reloaded = false;
+    const onControllerChange = () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+    };
   }, []);
 
   useEffect(() => {

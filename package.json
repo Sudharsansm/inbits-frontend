@@ -1,6 +1,6 @@
 {
   "name": "inbits",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -78,11 +78,11 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
-    "nitro": "latest",
+    "nitro": "3.0.260603-beta",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^7.3.6"
+    "vite": "^8.0.16"
   },
   "overrides": {
     "seroval": "^1.6.2",

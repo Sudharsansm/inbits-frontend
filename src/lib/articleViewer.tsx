@@ -1,7 +1,14 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import type { FeedItem } from "@/lib/api";
+import { seedArticle } from "@/lib/articleCache";
 
-export type ArticleLink = {
+// Accepts anything from a thin rail summary (id/title/source/sourceUrl)
+// up to a full live `FeedItem` — callers that already have the full
+// article in memory (the main feed, Updates, Search, Saved, Related)
+// should pass it as-is, since every extra field here is one less thing
+// /post/:id has to fetch before it can render for real.
+export type ArticleLink = Partial<FeedItem> & {
   id: string;
   title: string;
   source: string;
@@ -17,10 +24,16 @@ const ArticleViewerContext = createContext<ArticleViewerContextValue | null>(nul
 /**
  * Wraps the app once (see __root.tsx). Tapping any story anywhere — Home
  * feed, Reels, a channel list, search, related stories — goes through
- * this same `openArticle`, which takes you to the app's own article page
- * (`/post/:id`, see routes/post.$id.tsx): the real headline, image, and
- * full text, already fetched server-side, plus a clearly-marked link to
- * open the original story on the publisher's own site in a new tab.
+ * this same `openArticle`, which seeds the shared article cache with
+ * whatever's already known about the story (see lib/articleCache.ts) and
+ * then takes you to the app's own article page (`/post/:id`, see
+ * routes/post.$id.tsx). That seeding is what lets the article page
+ * render real content on the very first frame instead of a loading
+ * skeleton for every in-app tap — only a cold, direct link to a story
+ * (nothing seeded yet) still needs to fetch before it can show anything.
+ * The full article — real headline, image, and full text, backed by the
+ * live crawler — plus a clearly-marked link to open the original story on
+ * the publisher's own site in a new tab.
  *
  * This used to embed the publisher's page directly in an in-app iframe.
  * That doesn't actually work for most real news sites — nearly every
@@ -40,6 +53,10 @@ export function ArticleViewerProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   const openArticle = (article: ArticleLink) => {
+    // Seed *before* navigating — /post/:id's very first render checks
+    // this cache, so the reader never sees a loading state for a story
+    // the app already had something to show for.
+    seedArticle(article);
     navigate({
       to: "/post/$id",
       params: { id: article.id },

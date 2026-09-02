@@ -47,12 +47,15 @@ const tags = [
 const searchCache: { q: string; results: FeedItem[] } = { q: "", results: [] };
 
 function SearchPage() {
-  const { items: liveItems, connected } = useLiveFeed({ category: "All", cacheKey: "search-discover" });
+  const { items: liveItems, showEmptyState } = useLiveFeed({
+    category: "All",
+    cacheKey: "search-discover",
+  });
   // Same shared registry as Home/Updates — the browse grid shows articles
   // that weren't already the top story on those pages a moment ago.
-  const discover = useMemo(() => excludeSeen(liveItems, 8), [liveItems]);
+  const discover = useMemo(() => excludeSeen(liveItems, "search", 8), [liveItems]);
   useEffect(() => {
-    if (discover.length > 0) markSeen(discover.slice(0, 20).map((i) => i.id));
+    if (discover.length > 0) markSeen(discover.slice(0, 20).map((i) => i.id), "search");
   }, [discover]);
 
   const [q, setQ] = useState(searchCache.q);
@@ -157,7 +160,7 @@ function SearchPage() {
         /* Live discover grid — default browse view when there's no query.
            Same live buffer as everywhere else, just laid out Pinterest-style. */
         <div className="columns-2 gap-2 px-3 [column-fill:_balance]">
-          {discover.length === 0 && !connected ? (
+          {discover.length === 0 && !showEmptyState ? (
             <DiscoverGridSkeleton />
           ) : (
             <>
@@ -183,14 +186,7 @@ function SearchResultRow({ item }: { item: FeedItem }) {
   return (
     <li>
       <button
-        onClick={() =>
-          openArticle({
-            id: item.id,
-            title: item.title,
-            source: item.source,
-            sourceUrl: item.sourceUrl,
-          })
-        }
+        onClick={() => openArticle(item)}
         className="flex w-full items-start gap-3 rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition hover:bg-secondary"
       >
         <div className="min-w-0 flex-1">
@@ -221,14 +217,7 @@ function DiscoverCard({ item }: { item: FeedItem }) {
   const { openArticle } = useArticleViewer();
   return (
     <button
-      onClick={() =>
-        openArticle({
-          id: item.id,
-          title: item.title,
-          source: item.source,
-          sourceUrl: item.sourceUrl,
-        })
-      }
+      onClick={() => openArticle(item)}
       className="mb-2 block w-full break-inside-avoid overflow-hidden rounded-xl bg-card text-left"
     >
       <img src={item.image} alt={title} className="w-full object-cover" loading="lazy" />
