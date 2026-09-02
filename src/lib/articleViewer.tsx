@@ -1,0 +1,60 @@
+import { createContext, useContext, type ReactNode } from "react";
+import { useNavigate } from "@tanstack/react-router";
+
+export type ArticleLink = {
+  id: string;
+  title: string;
+  source: string;
+  sourceUrl: string;
+};
+
+type ArticleViewerContextValue = {
+  openArticle: (article: ArticleLink) => void;
+};
+
+const ArticleViewerContext = createContext<ArticleViewerContextValue | null>(null);
+
+/**
+ * Wraps the app once (see __root.tsx). Tapping any story anywhere — Home
+ * feed, Reels, a channel list, search, related stories — goes through
+ * this same `openArticle`, which takes you to the app's own article page
+ * (`/post/:id`, see routes/post.$id.tsx): the real headline, image, and
+ * full text, already fetched server-side, plus a clearly-marked link to
+ * open the original story on the publisher's own site in a new tab.
+ *
+ * This used to embed the publisher's page directly in an in-app iframe.
+ * That doesn't actually work for most real news sites — nearly every
+ * major publisher (BBC, NYT, Indian Express, NDTV, and the rest of this
+ * app's sources included) sends X-Frame-Options / CSP headers that
+ * specifically block being framed by another site, which is exactly why
+ * stories were reported as "not opening": the iframe wasn't broken, the
+ * sites were refusing to load inside it, silently, with no way for this
+ * app to detect that and show a fallback. That's a browser-enforced
+ * security restriction, not something fixable from the frontend — so the
+ * fix is to not rely on framing at all. A normal `target="_blank"` link,
+ * used for "open the original site", is unaffected by X-Frame-Options
+ * (it blocks framing, not top-level navigation), which is why that's the
+ * mechanism used for the real link instead.
+ */
+export function ArticleViewerProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+
+  const openArticle = (article: ArticleLink) => {
+    navigate({
+      to: "/post/$id",
+      params: { id: article.id },
+    });
+  };
+
+  return (
+    <ArticleViewerContext.Provider value={{ openArticle }}>
+      {children}
+    </ArticleViewerContext.Provider>
+  );
+}
+
+export function useArticleViewer() {
+  const ctx = useContext(ArticleViewerContext);
+  if (!ctx) throw new Error("useArticleViewer must be used within <ArticleViewerProvider>");
+  return ctx;
+}

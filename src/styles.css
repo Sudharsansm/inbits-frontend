@@ -1,0 +1,347 @@
+
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-serif: "Fraunces", Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 12px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-highlight: var(--highlight);
+}
+
+:root {
+  --radius: 0.875rem;
+
+  /* Warm paper / editorial ink palette */
+  --paper: oklch(0.985 0.012 85);
+  --ink: oklch(0.18 0.02 60);
+
+  --background: oklch(0.985 0.012 85);
+  --foreground: oklch(0.18 0.02 60);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.02 60);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.02 60);
+
+  /* Terracotta red */
+  --primary: oklch(0.45 0.18 28);
+  --primary-foreground: oklch(0.985 0.012 85);
+
+  --secondary: oklch(0.95 0.025 80);
+  --secondary-foreground: oklch(0.25 0.03 60);
+
+  --muted: oklch(0.94 0.015 85);
+  --muted-foreground: oklch(0.48 0.02 60);
+
+  /* Warm amber */
+  --accent: oklch(0.78 0.14 75);
+  --accent-foreground: oklch(0.18 0.02 60);
+
+  /* Yellow highlighter */
+  --highlight: oklch(0.92 0.13 95);
+
+  --destructive: oklch(0.55 0.22 27);
+  --destructive-foreground: oklch(0.985 0.012 85);
+
+  --border: oklch(0.88 0.015 80);
+  --input: oklch(0.88 0.015 80);
+  --ring: oklch(0.45 0.18 28);
+}
+
+.dark {
+  --paper: oklch(0.19 0.015 60);
+  --ink: oklch(0.95 0.01 80);
+
+  --background: oklch(0.16 0.015 60);
+  --foreground: oklch(0.95 0.01 80);
+
+  --card: oklch(0.22 0.018 60);
+  --card-foreground: oklch(0.95 0.01 80);
+
+  --popover: oklch(0.22 0.018 60);
+  --popover-foreground: oklch(0.95 0.01 80);
+
+  --primary: oklch(0.7 0.18 35);
+  --primary-foreground: oklch(0.16 0.015 60);
+
+  --secondary: oklch(0.26 0.02 60);
+  --secondary-foreground: oklch(0.95 0.01 80);
+
+  --muted: oklch(0.24 0.018 60);
+  --muted-foreground: oklch(0.7 0.015 70);
+
+  --accent: oklch(0.7 0.15 75);
+  --accent-foreground: oklch(0.16 0.015 60);
+
+  --highlight: oklch(0.55 0.16 95);
+
+  --destructive: oklch(0.65 0.22 27);
+  --destructive-foreground: oklch(0.95 0.01 80);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.7 0.18 35);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html,
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2,
+  h3,
+  .serif {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbar */
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  /* Paper grain */
+  .paper-grain {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      oklch(0.18 0.02 60 / 0.04) 1px,
+      transparent 0
+    );
+    background-size: 18px 18px;
+  }
+
+  /* Highlight text */
+  .text-highlight {
+    background: linear-gradient(
+      transparent 62%,
+      var(--color-highlight) 62%
+    );
+    padding: 0 2px;
+  }
+
+  /*
+   * Feed cards
+   *
+   * Allows the browser to skip layout/paint work for cards
+   * that are far below the current viewport.
+   */
+  .feed-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 640px;
+  }
+
+  /*
+   * Reels list
+   *
+   * Each reel already has an explicit height,
+   * so no intrinsic size estimate is required.
+   */
+  .reel-card {
+    content-visibility: auto;
+  }
+
+  /*
+   * Music equalizer
+   */
+  @keyframes eq-bounce {
+    0%,
+    100% {
+      transform: scaleY(0.35);
+    }
+
+    50% {
+      transform: scaleY(1);
+    }
+  }
+
+  .eq-bar {
+    transform-origin: bottom;
+    animation: eq-bounce 1s ease-in-out infinite;
+  }
+}
+
+/* =========================================================
+   INSTAGRAM-STYLE DOUBLE-TAP HEART
+   ========================================================= */
+
+@keyframes instagram-heart-burst {
+  /*
+   * Start almost invisible and very small.
+   */
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+
+  /*
+   * Fast first pop.
+   */
+  12% {
+    opacity: 1;
+    transform: scale(0.8);
+  }
+
+  /*
+   * Main heart expansion.
+   */
+  25% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+
+  /*
+   * Small compression after the overshoot.
+   */
+  38% {
+    transform: scale(0.94);
+  }
+
+  /*
+   * Natural rebound.
+   */
+  52% {
+    transform: scale(1.05);
+  }
+
+  /*
+   * Settle.
+   */
+  68% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /*
+   * Fade away.
+   */
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+.instagram-heart-burst {
+  animation: instagram-heart-burst 650ms
+    cubic-bezier(0.2, 0.8, 0.2, 1)
+    forwards;
+
+  transform-origin: center center;
+
+  /*
+   * Prevent the heart from affecting clicks,
+   * scrolling or gestures underneath it.
+   */
+  pointer-events: none;
+
+  /*
+   * Helps keep the animation smooth on mobile.
+   */
+  will-change: transform, opacity;
+
+  /*
+   * Makes the heart visually sit above the media.
+   */
+  position: relative;
+  z-index: 30;
+}
+
+/* =========================================================
+   LIKE BUTTON POP
+   ========================================================= */
+
+@keyframes like-pop {
+  0% {
+    transform: scale(1);
+  }
+
+  30% {
+    transform: scale(1.35);
+  }
+
+  55% {
+    transform: scale(0.88);
+  }
+
+  75% {
+    transform: scale(1.08);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.like-button.is-liked svg {
+  animation: like-pop 260ms
+    cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center;
+}
+
+/* =========================================================
+   ACCESSIBILITY
+   ========================================================= */
+
+/*
+ * Users who have enabled reduced motion in their OS
+ * should not receive large animated effects.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .instagram-heart-burst {
+    animation: none;
+    opacity: 0;
+  }
+
+  .like-button.is-liked svg {
+    animation: none;
+  }
+
+  .eq-bar {
+    animation: none;
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "InBits — News & Updates worth your time",
+  "short_name": "InBits",
+  "description": "A calm, book-readable feed of news, gossip, and jobs. Scraped from the best sources, served like a magazine.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "launch_handler": { "client_mode": "navigate-existing" },
+  "background_color": "#f6f3ec",
+  "theme_color": "#f6f3ec",
+  "lang": "en",
+  "related_applications": [{ "platform": "webapp", "url": "/manifest.webmanifest" }],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
