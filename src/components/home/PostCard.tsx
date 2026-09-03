@@ -1,13 +1,5 @@
-
 import { memo, useEffect, useRef, useState } from "react";
-import {
-  Bookmark,
-  Heart,
-  MoreHorizontal,
-  Share2,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { Bookmark, Heart, MoreHorizontal, Share2, Volume2, VolumeX } from "lucide-react";
 
 import type { FeedItem } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
@@ -16,16 +8,10 @@ import { useArticleViewer } from "@/lib/articleViewer";
 import { ImageCarousel } from "@/components/common/ImageCarousel";
 import { ChannelAvatar } from "@/components/common/ChannelAvatar";
 import { trackForItem } from "@/lib/music";
-import {
-  stopOtherPreviews,
-  clearActivePreview,
-} from "@/lib/audioPreview";
+import { stopOtherPreviews, clearActivePreview } from "@/lib/audioPreview";
 import { useShortLoop } from "@/hooks/useShortLoop";
 import { MusicEqualizer } from "@/components/common/MusicEqualizer";
-import {
-  useHomeMuted,
-  toggleHomeMuted,
-} from "@/lib/muteStore";
+import { useHomeMuted, toggleHomeMuted } from "@/lib/muteStore";
 import { useInterestProfile } from "@/lib/interests";
 import { sourceOriginLabel } from "@/lib/sourceOrigin";
 import { useTranslated } from "@/lib/i18n";
@@ -210,10 +196,7 @@ function PostCardInner({ post }: { post: FeedItem }) {
    * ------------------------------------------------------------
    */
 
-  const [title, excerpt] = useTranslated([
-    post.title,
-    post.excerpt,
-  ]);
+  const [title, excerpt] = useTranslated([post.title, post.excerpt]);
 
   /*
    * ------------------------------------------------------------
@@ -237,10 +220,7 @@ function PostCardInner({ post }: { post: FeedItem }) {
 
       setLiked(true);
 
-      recordLike(
-        post.category,
-        post.source,
-      );
+      recordLike(post.category, post.source);
 
       setBurst(true);
 
@@ -268,16 +248,10 @@ function PostCardInner({ post }: { post: FeedItem }) {
    * ------------------------------------------------------------
    */
 
-  const shareUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/post/${post.id}`
-      : "";
+  const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/post/${post.id}` : "";
 
   const share = async () => {
-    if (
-      typeof navigator !== "undefined" &&
-      (navigator as any).share
-    ) {
+    if (typeof navigator !== "undefined" && (navigator as any).share) {
       try {
         await (navigator as any).share({
           title: post.title,
@@ -310,45 +284,28 @@ function PostCardInner({ post }: { post: FeedItem }) {
 
   return (
     <article className="feed-card w-full border-b border-border bg-paper">
-
       {/* ========================================================
           HEADER
       ======================================================== */}
 
       <header className="flex items-center gap-2.5 px-3 py-2.5">
-        <ChannelAvatar
-          source={post.source}
-          sampleUrl={post.sourceUrl}
-        />
+        <ChannelAvatar source={post.source} sampleUrl={post.sourceUrl} />
 
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold leading-tight">
-            {post.source}
-          </div>
+          <div className="truncate text-[13px] font-semibold leading-tight">{post.source}</div>
 
           <div className="text-[10px] text-muted-foreground">
             {post.category} · {publishedLabel}
-
-            {sourceOriginLabel(
-              post.location,
-              post.language,
-            ) && (
+            {sourceOriginLabel(post.location, post.language) && (
               <>
                 {" · "}
-                {sourceOriginLabel(
-                  post.location,
-                  post.language,
-                )}
+                {sourceOriginLabel(post.location, post.language)}
               </>
             )}
           </div>
         </div>
 
-        <button
-          type="button"
-          aria-label="More"
-          className="rounded-full p-1.5 hover:bg-secondary"
-        >
+        <button type="button" aria-label="More" className="rounded-full p-1.5 hover:bg-secondary">
           <MoreHorizontal className="h-4 w-4" />
         </button>
       </header>
@@ -368,11 +325,7 @@ function PostCardInner({ post }: { post: FeedItem }) {
         }}
         className="block cursor-pointer select-none"
       >
-        <div
-          ref={mediaRef}
-          className="relative w-full"
-        >
-
+        <div ref={mediaRef} className="relative w-full">
           {/* ====================================================
               AUDIO
 
@@ -400,11 +353,8 @@ function PostCardInner({ post }: { post: FeedItem }) {
           ==================================================== */}
 
           <ImageCarousel
-            images={
-              post.images.length > 0
-                ? post.images
-                : [post.image]
-            }
+            images={post.images.length > 0 ? post.images : [post.image]}
+            alt={post.title}
             imgClassName="aspect-square object-cover"
           />
 
@@ -459,16 +409,8 @@ function PostCardInner({ post }: { post: FeedItem }) {
 
                   toggleHomeMuted();
                 }}
-                aria-label={
-                  homeMuted
-                    ? "Unmute"
-                    : "Mute"
-                }
-                title={
-                  homeMuted
-                    ? "Unmute"
-                    : "Mute"
-                }
+                aria-label={homeMuted ? "Unmute" : "Mute"}
+                title={homeMuted ? "Unmute" : "Mute"}
                 className="
                   flex
                   h-8
@@ -488,15 +430,9 @@ function PostCardInner({ post }: { post: FeedItem }) {
                 "
               >
                 {homeMuted ? (
-                  <VolumeX
-                    className="h-4 w-4"
-                    strokeWidth={2}
-                  />
+                  <VolumeX className="h-4 w-4" strokeWidth={2} />
                 ) : (
-                  <Volume2
-                    className="h-4 w-4"
-                    strokeWidth={2}
-                  />
+                  <Volume2 className="h-4 w-4" strokeWidth={2} />
                 )}
               </button>
             </div>
@@ -535,17 +471,13 @@ function PostCardInner({ post }: { post: FeedItem }) {
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={readPost}
-              className="block w-full text-left"
-            >
+            <button type="button" onClick={readPost} className="block w-full text-left">
               <h2 className="serif line-clamp-3 text-[20px] font-bold leading-[1.2] tracking-[-0.01em] text-white/95 drop-shadow-md sm:text-[22px] sm:leading-[1.2]">
                 {title}
               </h2>
             </button>
 
-            <p  className=" line-clamp-2 text-[12px] leading-[1.45] text-white/90 sm:text-[13px] sm:leading-[1.5]">
+            <p className=" line-clamp-2 text-[12px] leading-[1.45] text-white/90 sm:text-[13px] sm:leading-[1.5]">
               {excerpt}
             </p>
 
@@ -570,9 +502,7 @@ function PostCardInner({ post }: { post: FeedItem }) {
                     text-white/80
                   "
                 >
-                  {playing ? (
-                    <MusicEqualizer />
-                  ) : null}
+                  {playing ? <MusicEqualizer /> : null}
 
                   <span className="truncate">
                     {category} · {track.title} — {track.artist}
@@ -589,26 +519,20 @@ function PostCardInner({ post }: { post: FeedItem }) {
       ======================================================== */}
 
       <div className="flex items-center gap-4 px-3 py-2">
-
         {/* Like */}
         <button
           type="button"
           onClick={() => {
             setLiked((value) => {
               if (!value) {
-                recordLike(
-                  post.category,
-                  post.source,
-                );
+                recordLike(post.category, post.source);
               }
 
               return !value;
             });
           }}
           aria-label="Like"
-          className={`like-button transition active:scale-90 ${
-            liked ? "is-liked" : ""
-          }`}
+          className={`like-button transition active:scale-90 ${liked ? "is-liked" : ""}`}
         >
           <Heart
             className={`h-5 w-5 transition-transform duration-150 ${
@@ -621,11 +545,7 @@ function PostCardInner({ post }: { post: FeedItem }) {
         <button
           type="button"
           onClick={share}
-          aria-label={
-            copied
-              ? "Link copied"
-              : "Share"
-          }
+          aria-label={copied ? "Link copied" : "Share"}
           className="transition active:scale-90"
         >
           <Share2 className="h-5 w-5" />
@@ -638,13 +558,7 @@ function PostCardInner({ post }: { post: FeedItem }) {
           aria-label="Save"
           className="ml-auto transition active:scale-90"
         >
-          <Bookmark
-            className={`h-5 w-5 ${
-              saved
-                ? "fill-ink text-ink"
-                : ""
-            }`}
-          />
+          <Bookmark className={`h-5 w-5 ${saved ? "fill-ink text-ink" : ""}`} />
         </button>
       </div>
     </article>

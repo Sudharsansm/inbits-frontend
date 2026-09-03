@@ -23,8 +23,8 @@ import "../lib/installPromptStore";
 // Minimum time the splash stays fully visible, and how long its fade-out
 // transition runs, in milliseconds. Kept short so it reads as a branded
 // flash on cold start rather than something the user has to wait through.
-const SPLASH_MIN_VISIBLE_MS = 550;
-const SPLASH_FADE_MS = 400;
+const SPLASH_MIN_VISIBLE_MS = 200;
+const SPLASH_FADE_MS = 130;
 
 function SplashScreen({ visible }: { visible: boolean }) {
   return (
@@ -131,6 +131,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+    ],
+    // AdSense's own loader script, loaded once for the whole app rather
+    // than per-slot. `async` + `crossOrigin` match Google's snippet
+    // exactly — the ad unit's <ins> tags (see components/ads/AdSlot.tsx)
+    // just call adsbygoogle.push({}) once this has loaded.
+    scripts: [
+      {
+        src: "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5505424042187351",
+        async: true,
+        crossOrigin: "anonymous",
+      },
     ],
   }),
   shellComponent: RootShell,

@@ -86,6 +86,7 @@ function UpdateReelInner({
         )}
         <ImageCarousel
           images={p.images.length > 0 ? p.images : [p.image]}
+          alt={p.title}
           className="h-full w-full"
           imgClassName="h-full object-cover"
         />

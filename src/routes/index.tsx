@@ -3,6 +3,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, WifiOff } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useLiveFeed } from "@/hooks/useLiveFeed";
+import { loadFeedForRoute } from "@/lib/feedLoader";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useInterestProfile } from "@/lib/interests";
 import { browserLanguage, pickForYou } from "@/lib/recommend";
@@ -20,6 +21,7 @@ import { JournalRail } from "@/components/home/JournalRail";
 import { ChannelsRail } from "@/components/home/ChannelsRail";
 import { JobsRail } from "@/components/home/JobsRail";
 import { RecommendedRail } from "@/components/home/RecommendedRail";
+import { NativeHomeAd } from "@/components/ads/NativeHomeAd";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -37,22 +39,30 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  // Intentionally no loader here anymore. Waiting on a network round-trip
-  // before the route would even render is exactly what made opening the
-  // app feel slow — especially on a slow connection. Instead the page
-  // renders immediately with nothing, useLiveFeed's own REST-fallback +
-  // WebSocket fill it in client-side (usually within one round-trip of
-  // mount), and a skeleton feed (see FeedSkeleton) fills the gap so it
-  // never reads as a blank/stuck page while that happens. Repeat visits
-  // within the session are instant anyway, since useLiveFeed's own cache
-  // survives the component unmounting.
+  // A short, timeout-bounded loader (see lib/feedLoader.ts) — this is
+  // what makes a cold visit (fresh tab, hard refresh, a shared link)
+  // render real articles on the very first frame instead of the
+  // skeleton, on both the server-rendered HTML and the client. It's safe
+  // to have this run on every navigation now: the backend response it
+  // hits is nginx-microcached (see deploy/nginx/nginx.conf) and short
+  // `Cache-Control`'d, so it's cheap even under heavy traffic, and it can
+  // never block the route for more than ~1.2s even if the backend is
+  // completely unreachable — at which point the route still renders
+  // immediately with nothing, and useLiveFeed's own REST-fallback +
+  // WebSocket + FeedSkeleton take over exactly as before. `staleTime`
+  // means returning to Home within 30s of the last load reuses that data
+  // instead of refetching, so it doesn't slow down normal in-app nav.
+  loader: () => loadFeedForRoute("All"),
+  staleTime: 30_000,
   component: Home,
 });
 
 function Home() {
+  const initialItems = Route.useLoaderData();
   const { items, hasMore, connected, showEmptyState, loadMore, refresh } = useLiveFeed({
     category: "All",
     pageSize: 10,
+    initialItems,
   });
   const sentinel = useRef<HTMLDivElement>(null);
 
@@ -66,10 +76,7 @@ function Home() {
   // Articles already sitting in the main feed's visible window — used to
   // keep every in-feed suggestion rail from just echoing headlines the
   // reader has already scrolled past a moment earlier.
-  const visibleIds = useMemo(
-    () => new Set(feedPool.slice(0, 24).map((i) => i.id)),
-    [feedPool],
-  );
+  const visibleIds = useMemo(() => new Set(feedPool.slice(0, 24).map((i) => i.id)), [feedPool]);
   // Same live buffer, grouped into the Stands/Journal/Channels shapes for
   // the in-feed suggestion rails — so tapping one lands on the exact same
   // article/category/channel the Stands page itself would show, instead
@@ -99,7 +106,11 @@ function Home() {
   // Mark whatever the main feed is actually displaying as "seen" so
   // Updates/Search know to show something else.
   useEffect(() => {
-    if (feedPool.length > 0) markSeen(feedPool.slice(0, 24).map((i) => i.id), "home");
+    if (feedPool.length > 0)
+      markSeen(
+        feedPool.slice(0, 24).map((i) => i.id),
+        "home",
+      );
   }, [feedPool]);
 
   useEffect(() => {
@@ -168,6 +179,11 @@ function Home() {
               <PostCard post={item} />
               {slot === 1 && <StandsRail showcase={showcase} />}
               {slot === 3 && <JournalRail journal={journal} />}
+              {/* One AdSense unit per 8-post cycle — same cadence as the
+                  other rails, so it reads as part of the feed's normal
+                  rhythm rather than an interruption. Swap the slot ID for
+                  the ad unit you create in the AdSense dashboard. */}
+              {slot === 4 && <NativeHomeAd slot="0000000000" />}
               {slot === 5 && <ChannelsRail channels={channels} />}
               {slot === 6 && <RecommendedRail picks={recommended} />}
               {slot === 7 && <JobsRail />}

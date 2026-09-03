@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { searchArticles, type FeedItem } from "@/lib/api";
 import { useLiveFeed } from "@/hooks/useLiveFeed";
@@ -8,6 +8,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { useTranslated } from "@/lib/i18n";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { DiscoverGridSkeleton } from "@/components/common/FeedSkeleton";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { Loader2, Search as SearchIcon, X } from "lucide-react";
 
 export const Route = createFileRoute("/search")({
@@ -151,8 +152,15 @@ function SearchPage() {
             </p>
           )}
           <ul className="space-y-3 pb-6">
-            {results.map((item) => (
-              <SearchResultRow key={item.id} item={item} />
+            {results.map((item, idx) => (
+              <Fragment key={item.id}>
+                {idx > 0 && idx % 6 === 0 && (
+                  <li>
+                    <AdSlot slot="0000000007" />
+                  </li>
+                )}
+                <SearchResultRow item={item} />
+              </Fragment>
             ))}
           </ul>
         </div>
@@ -164,8 +172,15 @@ function SearchPage() {
             <DiscoverGridSkeleton />
           ) : (
             <>
-              {discover.map((s) => (
-                <DiscoverCard key={s.id} item={s} />
+              {discover.map((s, idx) => (
+                <Fragment key={s.id}>
+                  {idx > 0 && idx % 7 === 0 && (
+                    <div className="mb-2 break-inside-avoid">
+                      <AdSlot slot="0000000008" />
+                    </div>
+                  )}
+                  <DiscoverCard item={s} />
+                </Fragment>
               ))}
               {discover.length === 0 && (
                 <p className="col-span-2 py-10 text-center text-sm text-muted-foreground">

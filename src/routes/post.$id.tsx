@@ -22,6 +22,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { ShareButton } from "@/components/post/ShareButton";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/post/$id")({
   head: () => ({
@@ -331,6 +332,14 @@ function PostArticle({ post, related }: { post: FeedItem; related: FeedItem[] })
             <ExternalLink className="h-4 w-4 flex-none" />
           </a>
         )}
+
+        {/* Single ad, placed only after the story is fully read — at the
+            same natural pause point as the "Continue reading on X" link,
+            never mid-paragraph. One placement per article keeps this from
+            feeling like it's competing with the reading experience. */}
+        <div className="mt-6">
+          <AdSlot slot="0000000006" label="Sponsored" />
+        </div>
 
         {/* Share row */}
         <div className="mt-8 rounded-2xl border border-border bg-card p-4">

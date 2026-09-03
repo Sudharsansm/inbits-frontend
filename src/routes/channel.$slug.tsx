@@ -5,6 +5,7 @@ import { groupChannelsFromFeed } from "@/lib/liveGroups";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { ChannelAvatar } from "@/components/common/ChannelAvatar";
 import { sourceOriginLabel } from "@/lib/sourceOrigin";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { ArrowLeft, Headphones } from "lucide-react";
 
 export const Route = createFileRoute("/channel/$slug")({
@@ -103,8 +104,9 @@ function ChannelPage() {
         </div>
 
         <ul className="mt-3 space-y-3">
-          {channel.stories.map((s) => (
+          {channel.stories.map((s, idx) => (
             <li key={s.id}>
+              {idx > 0 && idx % 5 === 0 && <AdSlot slot="0000000005" />}
               <button
                 onClick={() =>
                   openArticle({

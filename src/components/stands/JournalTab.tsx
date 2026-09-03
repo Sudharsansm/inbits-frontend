@@ -1,6 +1,7 @@
 import { ArrowLeft, BookOpen } from "lucide-react";
 import type { JournalCategory } from "@/lib/content";
 import { useArticleViewer } from "@/lib/articleViewer";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export function JournalTab({
   categories,
@@ -39,8 +40,9 @@ export function JournalTab({
         </div>
 
         <ul className="mt-4 space-y-3">
-          {openCategory.articles.map((a) => (
+          {openCategory.articles.map((a, idx) => (
             <li key={a.id}>
+              {idx > 0 && idx % 5 === 0 && <AdSlot slot="0000000003" />}
               <button
                 onClick={() =>
                   openArticle({
