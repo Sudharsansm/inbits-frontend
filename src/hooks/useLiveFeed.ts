@@ -76,11 +76,24 @@ export function useLiveFeed({
   // Instagram shows your last-seen feed instantly before it refreshes —
   // this never replaces the live network fetch below, it only seeds the
   // first paint while that's in flight.
+  //
+  // FIX: that alone still left a real gap — Updates uses its own
+  // `cacheKey` ("updates") so its buffer/pagination stay independent
+  // from Home's, but that also meant its *persisted* snapshot was
+  // completely empty the very first time someone ever opened Updates,
+  // even though Home (same `category: "All"`) almost certainly already
+  // has one. A reader shouldn't have to visit every tab once each before
+  // any of them stop showing a delay. So: try this cache key's own
+  // snapshot first (it's the most relevant — already reel-diversified
+  // etc. — once it exists), and only if that's empty, fall back to the
+  // shared category-level snapshot as a "good enough to paint instantly"
+  // seed. Each key still keeps writing its own snapshot below, so this
+  // fallback naturally stops being needed after the first visit.
   const seed = cached?.items.length
     ? cached.items
     : initialItems.length > 0
       ? initialItems
-      : (loadPersistedFeed<FeedItem>(key) ?? []);
+      : (loadPersistedFeed<FeedItem>(key) ?? loadPersistedFeed<FeedItem>(category) ?? []);
 
   const [items, setItems] = useState<FeedItem[]>(seed);
   const [connected, setConnected] = useState(false);
@@ -136,10 +149,18 @@ export function useLiveFeed({
   // `seed` fallback above) has something recent to paint instantly. Capped
   // and throttled internally by feedPersist itself — this just feeds it
   // whatever's currently on screen whenever that changes.
+  //
+  // Also writes under the shared `category` key (not just this hook's own
+  // `key`) whenever the two differ — e.g. Updates (`key: "updates"`) also
+  // refreshes the "All" snapshot Home reads. That's what lets whichever
+  // page the reader opens *first* seed every other page on the same
+  // category instantly too, instead of each tab needing its own separate
+  // warm-up visit before it stops showing a delay.
   useEffect(() => {
     if (items.length === 0) return;
     savePersistedFeed(key, items);
-  }, [items, key]);
+    if (key !== category) savePersistedFeed(category, items);
+  }, [items, key, category]);
 
   const setItemsTracked = useCallback(
     (updater: FeedItem[] | ((prev: FeedItem[]) => FeedItem[])) => {
