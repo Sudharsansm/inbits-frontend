@@ -7,10 +7,9 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import logoMarkUrl from "../assets/logo-mark.svg?url";
 import { reportAppError } from "../lib/error-reporting";
 import { SavedPostsProvider } from "../lib/savedPosts";
 import { InstallGateProvider } from "../lib/installGate";
@@ -19,37 +18,6 @@ import { ArticleViewerProvider } from "../lib/articleViewer";
 // this module loads, not only once the install modal happens to mount.
 // See installPromptStore.ts for why that timing matters.
 import "../lib/installPromptStore";
-
-// FIX: these used to be 200ms / 130ms *fixed* delays that ran on every
-// cold open regardless of how fast the page was actually ready -- i.e.
-// ~330ms of pure artificial waiting stacked on top of real load time,
-// working directly against a sub-1s entry. Real apps (Instagram/YouTube)
-// don't force a minimum wait -- the splash disappears the instant the
-// app is ready. We keep a tiny minimum (one paint frame's worth) purely
-// to avoid an ugly 1-frame flash on very fast hydration, not to
-// throttle everyone else down to the slowest case.
-const SPLASH_MIN_VISIBLE_MS = 50;
-const SPLASH_FADE_MS = 80;
-
-function SplashScreen({ visible }: { visible: boolean }) {
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-hidden={!visible}
-      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background transition-opacity ease-out ${
-        visible ? "opacity-100 duration-150" : "pointer-events-none opacity-0"
-      }`}
-      style={{ transitionDuration: visible ? undefined : `${SPLASH_FADE_MS}ms` }}
-    >
-      <img src={logoMarkUrl} alt="InBits" className="h-14 w-auto animate-pulse sm:h-16" />
-      <span className="font-serif text-base font-semibold tracking-tight text-foreground sm:text-lg">
-        InBits
-      </span>
-      <span className="sr-only">Loading InBits…</span>
-    </div>
-  );
-}
 
 function NotFoundComponent() {
   return (
@@ -167,8 +135,6 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const [splashVisible, setSplashVisible] = useState(true);
-  const [splashMounted, setSplashMounted] = useState(true);
 
   useEffect(() => {
     // FIX: load AdSense's script only once the browser is idle (or after
@@ -236,39 +202,11 @@ function RootComponent() {
     };
   }, []);
 
-  useEffect(() => {
-    // The splash is server-rendered so it's the very first thing painted on
-    // cold start (including when launched standalone from a home screen).
-    // FIX: hide it as soon as the app has actually hydrated and painted
-    // (requestAnimationFrame, x2 -> guaranteed post-paint) instead of
-    // waiting out a fixed timer. SPLASH_MIN_VISIBLE_MS is now just a
-    // floor to prevent a 1-frame flash, not a mandatory wait.
-    let raf1 = 0;
-    let raf2 = 0;
-    const floorTimer = window.setTimeout(() => {
-      raf1 = window.requestAnimationFrame(() => {
-        raf2 = window.requestAnimationFrame(() => setSplashVisible(false));
-      });
-    }, SPLASH_MIN_VISIBLE_MS);
-    return () => {
-      window.clearTimeout(floorTimer);
-      window.cancelAnimationFrame(raf1);
-      window.cancelAnimationFrame(raf2);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (splashVisible) return;
-    const unmountTimer = window.setTimeout(() => setSplashMounted(false), SPLASH_FADE_MS);
-    return () => window.clearTimeout(unmountTimer);
-  }, [splashVisible]);
-
   return (
     <QueryClientProvider client={queryClient}>
       <InstallGateProvider>
         <SavedPostsProvider>
           <ArticleViewerProvider>
-            {splashMounted && <SplashScreen visible={splashVisible} />}
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
             <Outlet />
           </ArticleViewerProvider>

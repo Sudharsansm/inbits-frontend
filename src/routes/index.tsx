@@ -24,7 +24,6 @@ import {
   groupShowcaseFromFeed,
 } from "@/lib/liveGroups";
 import { PostCard } from "@/components/home/PostCard";
-import { FeedSkeleton } from "@/components/common/FeedSkeleton";
 import { SuggestionsSidebar } from "@/components/home/SuggestionsSidebar";
 import { StandsRail } from "@/components/home/StandsRail";
 import { JournalRail } from "@/components/home/JournalRail";
@@ -67,7 +66,7 @@ export const Route = createFileRoute("/")({
   // never block the route for more than ~1.2s even if the backend is
   // completely unreachable — at which point the route still renders
   // immediately with nothing, and useLiveFeed's own REST-fallback +
-  // WebSocket + FeedSkeleton take over exactly as before. `staleTime`
+  // WebSocket take over exactly as before. `staleTime`
   // means returning to Home within 30s of the last load reuses that data
   // instead of refetching, so it doesn't slow down normal in-app nav.
   loader: () => loadFeedForRoute("All"),
@@ -267,15 +266,12 @@ function Home() {
 
       {/* Instagram-style vertical post feed, backed live by the crawler. */}
       <section className="flex flex-col">
-        {/* Keep showing the skeleton — not a blank/empty message — for as
-            long as we haven't genuinely confirmed there's nothing to show.
-            `loaded` alone flips true the instant the first REST/WS
-            response lands, even if that response was empty (e.g. a
-            crawler that just started after a fresh deploy); `showEmptyState`
-            only becomes true after that emptiness has held for several
-            seconds, giving real-time new_item pushes a chance to fill the
-            feed in before declaring it empty. */}
-        {feedPool.length === 0 && !showEmptyState && <FeedSkeleton />}
+        {/* FIX: home used to show a skeleton placeholder for as long as
+            feedPool was empty. Removed so the page never shows a loading
+            state — it renders nothing until real posts are ready (which,
+            thanks to the loader in Route above, is normally instant),
+            and only falls back to the "no stories yet" message once
+            showEmptyState genuinely confirms there's nothing to show. */}
         {feedPool.length === 0 && showEmptyState && (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">
             No stories yet — check back in a moment.
