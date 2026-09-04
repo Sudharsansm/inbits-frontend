@@ -35,6 +35,25 @@ const AUTO_REFRESH_AFTER_HIDDEN_MS = 15_000;
 // Instagram/YouTube — those apps don't rely on one transport either.
 const AUTO_POLL_INTERVAL_MS = 20_000;
 
+// FIX: this cache was removed entirely at one point on the theory that a
+// stored/stale feed flashing on screen for a moment was worse than
+// showing nothing. In practice it made every single remount of a cache
+// key — Home → article → Back, tab-switching Home ⇄ Updates, even just
+// backgrounding and returning to the same tab — start from a blank list
+// and re-run a full network round trip before anything appeared, which
+// is exactly the "takes a moment to appear" symptom this was meant to
+// avoid, and it makes it happen on *every* navigation, not just the first
+// one. Restored as an in-memory (session-only; cleared on a real reload)
+// map so a remount can seed `items` from what was already on screen a
+// moment ago and render instantly, while the effect below still goes
+// straight to the socket/REST for the live, current feed the same as
+// before. This is safe from the "stale flash" problem it was removed
+// for: the "initial" socket handler already merges rather than replaces
+// whenever items are non-empty on mount (see the `itemsRef.current.length
+// > 0` branch below), so cached items are only ever topped up, never
+// shown as a stale full replacement.
+const feedCache = new Map<string, FeedItem[]>();
+
 /**
  * Keeps `items` in sync with the backend's `/ws/feed` socket, the way a
  * real social feed behaves:
@@ -58,19 +77,17 @@ export function useLiveFeed({
   pageSize = 10,
   cacheKey,
 }: Options) {
-  // FIX: there used to be a module-level `feedCache` Map here that stored
-  // the feed in memory across mounts (Home → article → Back, tab
-  // switches, app reopen, pull-to-refresh, etc.) and reused it as the
-  // seed for the next mount. That's exactly what caused old/"stored"
-  // items to flash on screen for a moment before the real, current data
-  // from the backend replaced them. That store has been removed
-  // entirely — every mount now starts from `initialItems` only (the
-  // route loader's SSR data, if any — that's live data, not a stored
-  // snapshot) and immediately goes to the network (socket + REST
-  // fallback, below) for the real, current feed. Nothing here is ever
-  // sourced from a previous visit, a previous mount, or a previous
-  // browser session.
-  const seed = initialItems;
+  // Prefer the route loader's SSR data when there is any (that's live,
+  // just-fetched data). Otherwise fall back to whatever this cache key
+  // last had on screen, so a remount — Home → article → Back, switching
+  // Home ⇄ Updates, reopening a backgrounded tab — paints immediately
+  // instead of blank. The network effect below always still runs and
+  // brings this up to date (merging on top if the initial socket message
+  // finds items already present, replacing only when truly starting from
+  // nothing), so this seed is purely about not showing an empty screen
+  // while that happens.
+  const key = cacheKey ?? category;
+  const seed = initialItems.length > 0 ? initialItems : (feedCache.get(key) ?? []);
 
   const [items, setItems] = useState<FeedItem[]>(seed);
   const [connected, setConnected] = useState(false);
@@ -129,10 +146,13 @@ export function useLiveFeed({
             ? (updater as (p: FeedItem[]) => FeedItem[])(prev)
             : updater;
         itemsRef.current = next;
+        // Keep the cross-mount cache current so the *next* mount of this
+        // cache key can seed from it instantly instead of starting blank.
+        feedCache.set(key, next);
         return next;
       });
     },
-    [],
+    [key],
   );
 
   const mergeUnique = useCallback(

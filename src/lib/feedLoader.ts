@@ -3,18 +3,21 @@ import { fetchFeed, type FeedItem } from "@/lib/api";
 // Used by route `loader`s (Home, Updates) to seed real content into the
 // very first render — including the server-rendered HTML on a cold visit.
 //
-// FIX: was 1200ms, then 350ms, then 80ms — each step still meant the SSR
-// pass gambled some amount of time on the backend before the browser got
-// its first byte of HTML. Set to 0: the loader no longer waits on the
-// network at all, so the route is never held up by backend/latency,
-// full stop. In practice this means SSR almost always resolves with an
-// empty list and the *client* becomes the real source of first paint —
-// useLiveFeed opens its WebSocket (falling back to a direct REST call)
-// immediately on mount and fills in real data a moment later. There is
-// no client-side cache/persistence layer anymore (removed — every load
-// always goes straight to the backend), so this first client-side fetch
-// is the only path to real content, same as any other visit.
-const LOADER_TIMEOUT_MS = 0;
+// FIX: this was dropped all the way to 0ms on the theory that "never wait
+// on the network" would make the route feel instant. It did the opposite:
+// with 0ms the loader aborts before the (nginx-microcached, normally
+// <50ms) backend request can ever come back, so SSR *always* resolves
+// with an empty list and both Home and Updates rendered nothing until a
+// second, client-only fetch finished after mount — the exact "takes a
+// moment to appear" delay this was meant to prevent. 1200ms was too
+// generous (a genuinely slow/unreachable backend held up navigation for
+// over a second), so this now gives the loader a short, bounded window —
+// long enough for the normal fast path to land real data before first
+// paint, short enough that a slow backend still can't stall the route for
+// more than a third of a second before it renders anyway with nothing,
+// exactly as before, and lets useLiveFeed's socket/REST fallback take
+// over from there.
+const LOADER_TIMEOUT_MS = 300;
 
 export async function loadFeedForRoute(category = "All"): Promise<FeedItem[]> {
   const controller = new AbortController();

@@ -12,6 +12,7 @@ import { Loader2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useLiveFeed } from "@/hooks/useLiveFeed";
 import { consumeFeedReturnIntent } from "@/lib/feedReturnIntent";
+import { loadFeedForRoute } from "@/lib/feedLoader";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { usePref } from "@/hooks/usePrefs";
 import { useSavedPosts } from "@/lib/savedPosts";
@@ -33,12 +34,18 @@ export const Route = createFileRoute("/updates")({
       },
     ],
   }),
-  // No loader — same reasoning as Home. Blocking this route's navigation
-  // on a network round-trip is exactly what made opening Updates feel
-  // like it was stuck "loading". useLiveFeed's own REST-fallback +
-  // WebSocket populate `liveItems` client-side right after mount, and a
-  // reel-shaped skeleton (see ReelSkeleton) covers the brief gap so the
-  // page never shows a bare spinner or a frozen screen.
+  // FIX: this route used to skip the loader entirely on the theory that
+  // any network round-trip in the way of navigation was bad. It backfired
+  // — Updates then *always* opened blank and waited on a client-only
+  // fetch after mount to show anything, on every visit, not just the
+  // first. Same short, timeout-bounded loader Home uses (see
+  // lib/feedLoader.ts): it's cheap (nginx-microcached) and can never hold
+  // the route up for more than ~300ms even if the backend is completely
+  // unreachable, at which point the route still renders immediately with
+  // nothing and useLiveFeed's REST-fallback + WebSocket take over exactly
+  // as before.
+  loader: () => loadFeedForRoute("All"),
+  staleTime: 30_000,
   component: Updates,
 });
 
@@ -120,14 +127,15 @@ function LazyAdReel({
 }
 
 function Updates() {
-  // useLiveFeed no longer keeps a stored feed to resume from — every
-  // mount starts empty and fetches live. This only decides whether
-  // Updates also resets the reader's remembered scroll position on this
-  // mount (see the layout effects below): if we didn't just arrive here
-  // from reading an article (see lib/feedReturnIntent.ts), start
-  // scrolled to reel #1 instead of wherever it was left off -- the same
-  // way reopening Instagram's Reels tab after visiting another tab
-  // starts you from the top with fresh content.
+  const initialItems = Route.useLoaderData();
+
+  // This only decides whether Updates also resets the reader's
+  // remembered scroll position on this mount (see the layout effects
+  // below): if we didn't just arrive here from reading an article (see
+  // lib/feedReturnIntent.ts), start scrolled to reel #1 instead of
+  // wherever it was left off -- the same way reopening Instagram's Reels
+  // tab after visiting another tab starts you from the top with fresh
+  // content.
   const [{ resetOnMount, returnToPostId }] = useState(() => {
     const { intent, postId } = consumeFeedReturnIntent();
     return { resetOnMount: intent === "reset", returnToPostId: postId };
@@ -138,7 +146,7 @@ function Updates() {
     hasMore,
     loadMore,
     refresh,
-  } = useLiveFeed({ category: "All", pageSize: 6, cacheKey: "updates" });
+  } = useLiveFeed({ category: "All", pageSize: 6, cacheKey: "updates", initialItems });
 
   // Skip anything already shown on Home or Search this session — same
   // shared registry Home writes to. Stands is still the place to find
@@ -225,14 +233,15 @@ function Updates() {
   // appending new reels -- any of which would make a raw remembered
   // pixel offset land on the wrong reel.
   //
-  // This route deliberately has no loader (see the comment at the top of
-  // the file), so on a genuine full page reload -- which is what a Back
-  // navigation often actually is here, since an open feed WebSocket
-  // keeps this page out of the browser's back-forward cache, see
-  // lib/feedReturnIntent.ts -- `posts` starts empty and fills in
-  // asynchronously from the REST fallback/socket. A restore attempted
-  // only once on mount can easily run before the target reel is in the
-  // DOM at all and silently find nothing. So this re-runs every time
+  // On a genuine full page reload -- which is what a Back navigation
+  // often actually is here, since an open feed WebSocket keeps this page
+  // out of the browser's back-forward cache, see lib/feedReturnIntent.ts
+  // -- the loader above is timeout-bounded and can still land after the
+  // target reel's id was captured, so `posts` may start empty (or without
+  // that reel yet) and fill in asynchronously from the REST
+  // fallback/socket. A restore attempted only once on mount can easily
+  // run before the target reel is in the DOM at all and silently find
+  // nothing. So this re-runs every time
   // `posts` changes instead, and gives up (via restoredRef) the instant
   // it succeeds, both so it stops looking once satisfied and so it never
   // fights the reader's own scrolling once they've started.
