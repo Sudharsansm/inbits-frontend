@@ -17,7 +17,7 @@ import { fetchFeed, type FeedItem } from "@/lib/api";
 // more than a third of a second before it renders anyway with nothing,
 // exactly as before, and lets useLiveFeed's socket/REST fallback take
 // over from there.
-const LOADER_TIMEOUT_MS = 50;
+const LOADER_TIMEOUT_MS = 500;
 
 export async function loadFeedForRoute(category = "All"): Promise<FeedItem[]> {
   const controller = new AbortController();
