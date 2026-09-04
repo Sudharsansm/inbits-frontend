@@ -1,7 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
-import { RoutePendingSkeleton } from "./components/layout/RoutePendingSkeleton";
 
 export const getRouter = () => {
   const queryClient = new QueryClient();
@@ -9,7 +8,18 @@ export const getRouter = () => {
   const router = createRouter({
     routeTree,
     context: { queryClient },
-    scrollRestoration: true,
+    // FIX: was `true`. The router's own scroll restoration and this
+    // app's manual "remember where you were" logic (see routes/index.tsx
+    // and routes/updates.tsx) were both trying to control scroll
+    // position after a Back navigation. React commits child layout
+    // effects (the page's own restore) before this router-level one, so
+    // the router's restore always ran last and silently overwrote the
+    // correct position back to the top -- which is exactly why Back from
+    // an article always landed on the first post instead of the one you
+    // were reading. Turning this off leaves scroll restoration entirely
+    // to the manual logic, which is the only thing that actually knows
+    // about this app's cached/reordered feeds.
+    scrollRestoration: false,
     // Start fetching a route's data on hover/touchstart, before the
     // click/tap even lands — combined with each route's own staleTime,
     // this means most navigations (tapping a story, going back to Home)
@@ -17,16 +27,6 @@ export const getRouter = () => {
     // only starts once the click land.
     defaultPreload: "intent",
     defaultPreloadStaleTime: 0,
-    // "Frontend first, backend after": on a genuinely first-time
-    // navigation (nothing preloaded/cached yet), show the app frame
-    // immediately instead of leaving the screen blank/frozen while the
-    // loader's network call is still in flight. Defaults were 1000ms/
-    // 500ms, which is long enough on a slower connection that switching
-    // pages felt stuck; showing the shell fast (and only holding it for a
-    // beat so it doesn't flash) reads as instant.
-    defaultPendingComponent: RoutePendingSkeleton,
-    defaultPendingMs: 150,
-    defaultPendingMinMs: 120,
   });
 
   return router;

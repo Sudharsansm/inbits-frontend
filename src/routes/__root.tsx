@@ -20,11 +20,16 @@ import { ArticleViewerProvider } from "../lib/articleViewer";
 // See installPromptStore.ts for why that timing matters.
 import "../lib/installPromptStore";
 
-// Minimum time the splash stays fully visible, and how long its fade-out
-// transition runs, in milliseconds. Kept short so it reads as a branded
-// flash on cold start rather than something the user has to wait through.
-const SPLASH_MIN_VISIBLE_MS = 200;
-const SPLASH_FADE_MS = 130;
+// FIX: these used to be 200ms / 130ms *fixed* delays that ran on every
+// cold open regardless of how fast the page was actually ready -- i.e.
+// ~330ms of pure artificial waiting stacked on top of real load time,
+// working directly against a sub-1s entry. Real apps (Instagram/YouTube)
+// don't force a minimum wait -- the splash disappears the instant the
+// app is ready. We keep a tiny minimum (one paint frame's worth) purely
+// to avoid an ugly 1-frame flash on very fast hydration, not to
+// throttle everyone else down to the slowest case.
+const SPLASH_MIN_VISIBLE_MS = 50;
+const SPLASH_FADE_MS = 80;
 
 function SplashScreen({ visible }: { visible: boolean }) {
   return (
@@ -132,17 +137,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
-    // AdSense's own loader script, loaded once for the whole app rather
-    // than per-slot. `async` + `crossOrigin` match Google's snippet
-    // exactly — the ad unit's <ins> tags (see components/ads/AdSlot.tsx)
-    // just call adsbygoogle.push({}) once this has loaded.
-    scripts: [
-      {
-        src: "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5505424042187351",
-        async: true,
-        crossOrigin: "anonymous",
-      },
-    ],
+    // FIX: the AdSense loader used to be listed here, which put it in
+    // the initial document's <head> -- competing for bandwidth with the
+    // app's own JS/CSS/feed data during the most critical first second,
+    // on a page that hasn't even scrolled to an ad slot yet. It's now
+    // injected client-side, after first paint, from RootComponent below
+    // (see the AdSense-loading effect) instead of being part of the
+    // critical request chain.
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -168,6 +169,40 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [splashVisible, setSplashVisible] = useState(true);
   const [splashMounted, setSplashMounted] = useState(true);
+
+  useEffect(() => {
+    // FIX: load AdSense's script only once the browser is idle (or after
+    // a short fallback delay on browsers without requestIdleCallback),
+    // instead of it being a render-blocking-adjacent resource in the
+    // initial <head>. Ad units (see components/ads/AdSlot.tsx) already
+    // tolerate `adsbygoogle` not existing yet, so there's nothing for
+    // this to race against.
+    if (document.querySelector('script[src*="adsbygoogle.js"]')) return;
+    const loadAds = () => {
+      const script = document.createElement("script");
+      script.src =
+        "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5505424042187351";
+      script.async = true;
+      script.crossOrigin = "anonymous";
+      document.head.appendChild(script);
+    };
+
+    // Plain feature-detect via `any` rather than typing against the DOM
+    // lib's requestIdleCallback signature directly -- avoids fighting
+    // whatever `lib` your tsconfig targets. Falls back to a timeout on
+    // Safari/older browsers, which don't implement it.
+    const win = window as any;
+    const hasIdle = typeof win.requestIdleCallback === "function";
+    const idleId: number = hasIdle ? win.requestIdleCallback(loadAds) : win.setTimeout(loadAds, 2000);
+
+    return () => {
+      if (hasIdle && typeof win.cancelIdleCallback === "function") {
+        win.cancelIdleCallback(idleId);
+      } else {
+        window.clearTimeout(idleId);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Registers the PWA service worker (public/sw.js) so the app is
@@ -204,9 +239,22 @@ function RootComponent() {
   useEffect(() => {
     // The splash is server-rendered so it's the very first thing painted on
     // cold start (including when launched standalone from a home screen).
-    // Hold it for a minimum beat, then fade it out.
-    const hideTimer = window.setTimeout(() => setSplashVisible(false), SPLASH_MIN_VISIBLE_MS);
-    return () => window.clearTimeout(hideTimer);
+    // FIX: hide it as soon as the app has actually hydrated and painted
+    // (requestAnimationFrame, x2 -> guaranteed post-paint) instead of
+    // waiting out a fixed timer. SPLASH_MIN_VISIBLE_MS is now just a
+    // floor to prevent a 1-frame flash, not a mandatory wait.
+    let raf1 = 0;
+    let raf2 = 0;
+    const floorTimer = window.setTimeout(() => {
+      raf1 = window.requestAnimationFrame(() => {
+        raf2 = window.requestAnimationFrame(() => setSplashVisible(false));
+      });
+    }, SPLASH_MIN_VISIBLE_MS);
+    return () => {
+      window.clearTimeout(floorTimer);
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+    };
   }, []);
 
   useEffect(() => {

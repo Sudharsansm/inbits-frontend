@@ -2,6 +2,7 @@ import { createContext, useContext, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { FeedItem } from "@/lib/api";
 import { seedArticle } from "@/lib/articleCache";
+import { markLeavingForArticle } from "@/lib/feedReturnIntent";
 
 // Accepts anything from a thin rail summary (id/title/source/sourceUrl)
 // up to a full live `FeedItem` — callers that already have the full
@@ -57,6 +58,14 @@ export function ArticleViewerProvider({ children }: { children: ReactNode }) {
     // this cache, so the reader never sees a loading state for a story
     // the app already had something to show for.
     seedArticle(article);
+    // Tell Home/Updates (see lib/feedReturnIntent.ts) that wherever this
+    // navigation is coming from, it should preserve its feed/scroll
+    // position when the reader comes back -- as opposed to navigating
+    // away to some other page (Jobs, Search, ...), which should show
+    // fresh content on return instead. Recording the id (not just a
+    // pixel offset) is what lets the return trip scroll this exact post
+    // back into view even if card heights shifted while we were gone.
+    markLeavingForArticle(article.id);
     navigate({
       to: "/post/$id",
       params: { id: article.id },

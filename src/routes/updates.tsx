@@ -1,17 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Loader2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { useLiveFeed } from "@/hooks/useLiveFeed";
+import { useLiveFeed, clearFeedCache } from "@/hooks/useLiveFeed";
+import { consumeFeedReturnIntent } from "@/lib/feedReturnIntent";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { usePref } from "@/hooks/usePrefs";
 import { useSavedPosts } from "@/lib/savedPosts";
 import { diversifyBySource } from "@/lib/liveGroups";
 import { excludeSeen, markSeen } from "@/lib/seenArticles";
+import { hasImage } from "@/lib/postImage";
 import { useInterestProfile } from "@/lib/interests";
 import { UpdateReel } from "@/components/updates/UpdateReel";
 import { AdReel } from "@/components/ads/AdReel";
-import { ReelSkeleton } from "@/components/common/FeedSkeleton";
 import { ShareSheet } from "@/components/updates/ShareSheet";
 
 export const Route = createFileRoute("/updates")({
@@ -68,6 +77,10 @@ function LazyAdReel({
 }) {
   const placeholderRef = useRef<HTMLDivElement>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
+  // Once AdSense tells us this slot got no fill, drop the wrapper too —
+  // otherwise the reel list keeps a blank full-screen snap section where
+  // the ad would have been.
+  const [unfilled, setUnfilled] = useState(false);
 
   useEffect(() => {
     if (shouldLoad) return;
@@ -86,12 +99,19 @@ function LazyAdReel({
     return () => io.disconnect();
   }, [scrollRootRef, shouldLoad]);
 
+  if (unfilled) return null;
+
   if (shouldLoad) {
     // Same footprint as a real reel/ad so the scroll list's height and
     // snap points don't jump once the real ad swaps in.
     return (
       <div className="ad-fade-in h-full w-full snap-start snap-always">
-        <AdReel slot={slot} />
+        <AdReel
+          slot={slot}
+          onStatusChange={(status) => {
+            if (status === "unfilled") setUnfilled(true);
+          }}
+        />
       </div>
     );
   }
@@ -100,12 +120,24 @@ function LazyAdReel({
 }
 
 function Updates() {
+  // Consumed exactly once per mount, before useLiveFeed reads its cache:
+  // if we didn't just arrive here from reading an article (see
+  // lib/feedReturnIntent.ts), clear this page's cached feed so it starts
+  // fresh instead of resuming wherever it was left off -- the same way
+  // reopening Instagram's Reels tab after visiting another tab starts
+  // you from the top with fresh content, not your old scroll spot.
+  const [{ resetOnMount, returnToPostId }] = useState(() => {
+    const { intent, postId } = consumeFeedReturnIntent();
+    const reset = intent === "reset";
+    if (reset) clearFeedCache("updates");
+    return { resetOnMount: reset, returnToPostId: postId };
+  });
+
   const {
     items: liveItems,
     hasMore,
     loadMore,
     refresh,
-    showEmptyState,
   } = useLiveFeed({ category: "All", pageSize: 6, cacheKey: "updates" });
 
   // Skip anything already shown on Home or Search this session — same
@@ -118,7 +150,23 @@ function Updates() {
   // across publishers instead of Home's straight chronological order, so
   // consecutive reels come from different sources. Recomputed only when
   // the underlying item set actually changes, not on every render.
-  const posts = useMemo(() => diversifyBySource(unseenPool), [unseenPool]);
+  // Same rule as Home: a reel with no image at all is never shown, and
+  // neither is one whose image URL exists but has failed to load
+  // (tracked below via ImageCarousel's onUnavailable callback, threaded
+  // through UpdateReel). No placeholder/letter stands in for a missing
+  // image here -- the whole reel is just not part of the list.
+  const [brokenImageIds, setBrokenImageIds] = useState<Set<string>>(() => new Set());
+  const markImageBroken = useCallback((id: string) => {
+    setBrokenImageIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
+
+  const posts = useMemo(
+    () =>
+      diversifyBySource(unseenPool).filter(
+        (item) => hasImage(item) && !brokenImageIds.has(item.id),
+      ),
+    [unseenPool, brokenImageIds],
+  );
 
   useEffect(() => {
     if (posts.length > 0) markSeen(posts.map((p) => p.id), "updates");
@@ -132,6 +180,7 @@ function Updates() {
   const tapRef = useRef<Record<string, number>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
+
   const reelRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [activeId, setActiveId] = useState<string | null>(null);
   // Persisted like Instagram's mute toggle: muted by default (autoplay
@@ -144,15 +193,20 @@ function Updates() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // Restore exactly where the user left off (which reel they were on),
-  // and keep saving as they scroll so leaving mid-session — e.g. tapping
-  // "Read" on a reel — and coming back lands them right back there
-  // instead of resetting to the top. useLayoutEffect so the jump happens
-  // before paint, not as a visible snap after the reel list first renders.
+  const restoredRef = useRef(false);
+
+  // Always-on: track scrollTop as the reader scrolls (used as the
+  // fallback below), and handle the reset case immediately -- nothing to
+  // restore, so don't let the retrying effect below do anything either.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    if (savedScrollTop > 0) el.scrollTop = savedScrollTop;
+
+    if (resetOnMount) {
+      el.scrollTo({ top: 0 });
+      savedScrollTop = 0;
+      restoredRef.current = true;
+    }
 
     const onScroll = () => {
       savedScrollTop = el.scrollTop;
@@ -162,9 +216,44 @@ function Updates() {
       savedScrollTop = el.scrollTop;
       el.removeEventListener("scroll", onScroll);
     };
-    // Only needs to run once per mount — `posts` populating later doesn't
-    // require re-binding this.
-  }, []);
+  }, [resetOnMount]);
+
+  // Restore exactly where the user left off. Finding the exact reel by
+  // its post id and scrolling straight to it is robust to any shift in
+  // the list between leaving and coming back -- an ad slot's lazy mount,
+  // a reel dropping out because its image failed, a pull-to-refresh
+  // appending new reels -- any of which would make a raw remembered
+  // pixel offset land on the wrong reel.
+  //
+  // This route deliberately has no loader (see the comment at the top of
+  // the file), so on a genuine full page reload -- which is what a Back
+  // navigation often actually is here, since an open feed WebSocket
+  // keeps this page out of the browser's back-forward cache, see
+  // lib/feedReturnIntent.ts -- `posts` starts empty and fills in
+  // asynchronously from the REST fallback/socket. A restore attempted
+  // only once on mount can easily run before the target reel is in the
+  // DOM at all and silently find nothing. So this re-runs every time
+  // `posts` changes instead, and gives up (via restoredRef) the instant
+  // it succeeds, both so it stops looking once satisfied and so it never
+  // fights the reader's own scrolling once they've started.
+  useLayoutEffect(() => {
+    if (restoredRef.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    if (!returnToPostId) {
+      if (savedScrollTop > 0 && posts.length > 0) {
+        el.scrollTop = savedScrollTop;
+        restoredRef.current = true;
+      }
+      return;
+    }
+    const target = el.querySelector(`[data-post-id="${CSS.escape(returnToPostId)}"]`);
+    if (target) {
+      (target as HTMLElement).scrollIntoView({ block: "start" });
+      restoredRef.current = true;
+    }
+  }, [posts, returnToPostId]);
 
   useEffect(() => {
     const el = sentinel.current;
@@ -241,6 +330,15 @@ function Updates() {
     <AppShell title="Updates" fullWidth>
       <div
         ref={scrollRef}
+        // FIX: TanStack Router's scrollRestoration (see router.tsx) only
+        // auto-tracks the window's own scroll unless an element is
+        // tagged with this attribute -- without it, the router has no
+        // way to know this div (not the window) is what actually
+        // scrolls here, so opening a reel's full article and hitting
+        // Back reset you to the top of the list instead of the reel you
+        // were on. Home doesn't need this because its feed scrolls the
+        // window directly.
+        data-scroll-restoration-id="updates-reel-scroll"
         className="-mt-0 h-[calc(100vh-129px)] md:h-[calc(100vh-2.5rem)] w-full overflow-y-auto snap-y snap-mandatory scrollbar-none"
       >
         <div
@@ -252,7 +350,6 @@ function Updates() {
           />
         </div>
 
-        {posts.length === 0 && !showEmptyState && <ReelSkeleton />}
         {posts.map((p, idx) => {
           const isLiked = liked[p.id];
           const isSaved = isSavedId(p.id);
@@ -295,6 +392,7 @@ function Updates() {
                   }}
                   onShare={() => setShareFor(p.id)}
                   onToggleMute={() => setMuted(!muted)}
+                  onImageUnavailable={() => markImageBroken(p.id)}
                 />
               </div>
             </Fragment>

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Megaphone, MoreHorizontal } from "lucide-react";
 import { ADSENSE_CLIENT } from "@/components/ads/AdSlot";
+import { useAdFillStatus } from "@/hooks/useAdFillStatus";
 
 /**
  * Home-feed ad, built on PostCard's own header/body shape rather than a
@@ -20,6 +21,7 @@ import { ADSENSE_CLIENT } from "@/components/ads/AdSlot";
 export function NativeHomeAd({ slot }: { slot: string }) {
   const insRef = useRef<HTMLModElement>(null);
   const pushed = useRef(false);
+  const status = useAdFillStatus(insRef);
 
   useEffect(() => {
     if (pushed.current || !insRef.current) return;
@@ -30,6 +32,11 @@ export function NativeHomeAd({ slot }: { slot: string }) {
       console.error("AdSense push failed", error);
     }
   }, []);
+
+  // No fill — don't leave a "Sponsored" post-shaped card with a blank
+  // gray box inside it sitting in the feed. Drop it so real posts fill
+  // the space instead.
+  if (status === "unfilled") return null;
 
   return (
     <article className="feed-card w-full border-b border-border bg-paper">

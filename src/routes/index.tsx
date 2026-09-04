@@ -1,13 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Loader2, WifiOff } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { useLiveFeed } from "@/hooks/useLiveFeed";
+import { useLiveFeed, clearFeedCache } from "@/hooks/useLiveFeed";
+import { consumeFeedReturnIntent } from "@/lib/feedReturnIntent";
 import { loadFeedForRoute } from "@/lib/feedLoader";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useInterestProfile } from "@/lib/interests";
 import { browserLanguage, pickForYou } from "@/lib/recommend";
 import { excludeSeen, markSeen } from "@/lib/seenArticles";
+import { hasImage } from "@/lib/postImage";
 import {
   groupChannelsFromFeed,
   groupJournalFromFeed,
@@ -22,6 +32,14 @@ import { ChannelsRail } from "@/components/home/ChannelsRail";
 import { JobsRail } from "@/components/home/JobsRail";
 import { RecommendedRail } from "@/components/home/RecommendedRail";
 import { NativeHomeAd } from "@/components/ads/NativeHomeAd";
+
+// FIX: with router-level scrollRestoration now off (see router.tsx), Home
+// has to remember its own window scroll position across a route unmount
+// the same way Updates already does for its reel list -- otherwise
+// leaving to read an article and hitting Back always dropped you back at
+// the top of the feed instead of the post you were on. Module scope so it
+// survives Home unmounting while you're on /post/:id.
+let savedWindowScrollY = 0;
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -59,6 +77,22 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const initialItems = Route.useLoaderData();
+
+  // Home's cacheKey defaults to its category ("All" — see the
+  // `cacheKey ?? category` fallback in useLiveFeed.ts). Consumed exactly
+  // once per mount, before useLiveFeed reads that cache: if we didn't
+  // just arrive here from reading an article (see
+  // lib/feedReturnIntent.ts), clear it so the feed starts fresh from the
+  // loader's data instead of resuming wherever it was left off — the
+  // same way reopening Instagram's Home tab after visiting another tab
+  // shows fresh content from the top rather than your old scroll spot.
+  const [{ resetOnMount, returnToPostId }] = useState(() => {
+    const { intent, postId } = consumeFeedReturnIntent();
+    const reset = intent === "reset";
+    if (reset) clearFeedCache("All");
+    return { resetOnMount: reset, returnToPostId: postId };
+  });
+
   const { items, hasMore, connected, showEmptyState, loadMore, refresh } = useLiveFeed({
     category: "All",
     pageSize: 10,
@@ -66,12 +100,87 @@ function Home() {
   });
   const sentinel = useRef<HTMLDivElement>(null);
 
+  const restoredRef = useRef(false);
+
+  // Reset case: nothing to restore, go straight to the top and don't let
+  // the retrying restore effect below do anything.
+  useLayoutEffect(() => {
+    if (!resetOnMount) return;
+    window.scrollTo({ top: 0 });
+    savedWindowScrollY = 0;
+    restoredRef.current = true;
+  }, [resetOnMount]);
+
+  // Keep saving the window scroll position as the reader scrolls, purely
+  // as a fallback for the rare case there's no returnToPostId to restore
+  // by (see the retrying effect below, after feedPool, for the primary
+  // id-based restore).
+  useEffect(() => {
+    const onScroll = () => {
+      savedWindowScrollY = window.scrollY;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      savedWindowScrollY = window.scrollY;
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
   // Never show a headline the reader has already seen on Updates or
   // Search in this session — those get pushed onto Stands instead, which
   // is the one page meant to hold everything regardless of what's been
   // seen. Falls back to the full pool if there isn't enough unseen
   // content yet (e.g. first page opened this session).
-  const feedPool = useMemo(() => excludeSeen(items, "home", 10), [items]);
+  // Posts with no image at all are never shown -- and neither is a post
+  // whose image URL exists but has failed to load (tracked below via
+  // ImageCarousel's onUnavailable callback). This app shows a real image
+  // or it doesn't show the post; there's no placeholder in between.
+  const [brokenImageIds, setBrokenImageIds] = useState<Set<string>>(() => new Set());
+  const markImageBroken = useCallback((id: string) => {
+    setBrokenImageIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
+
+  const feedPool = useMemo(
+    () =>
+      excludeSeen(items, "home", 10).filter(
+        (item) => hasImage(item) && !brokenImageIds.has(item.id),
+      ),
+    [items, brokenImageIds],
+  );
+
+  // Restore exactly where the reader left off. Scrolling the exact post
+  // (by id) back into view is robust to layout shifts that happen while
+  // you're away -- an ad slot mounting, an image finishing loading and
+  // changing a card's height, a pull-to-refresh appending new items --
+  // any of which would make a raw remembered pixel offset land on the
+  // wrong card.
+  //
+  // This route has no client-side cache to fall back on the moment a
+  // Back navigation turns out to be a genuine full page reload rather
+  // than an in-app pop (see lib/feedReturnIntent.ts for why that
+  // happens) -- `items` starts as whatever the loader/SSR pass produced,
+  // and the exact post might land on a later page/socket push rather
+  // than the first one. A single restore attempt on mount can easily run
+  // before that post is even in the DOM yet and silently do nothing. So
+  // this re-runs every time feedPool changes instead of only once, and
+  // gives up (via restoredRef) the moment it succeeds -- both so it
+  // stops looking once there's nothing left to find, and so it never
+  // overrides the reader's own scrolling once they've started.
+  useLayoutEffect(() => {
+    if (restoredRef.current) return;
+    if (!returnToPostId) {
+      if (savedWindowScrollY > 0 && feedPool.length > 0) {
+        window.scrollTo({ top: savedWindowScrollY });
+        restoredRef.current = true;
+      }
+      return;
+    }
+    const target = document.querySelector(`[data-post-id="${CSS.escape(returnToPostId)}"]`);
+    if (target) {
+      target.scrollIntoView({ block: "start" });
+      restoredRef.current = true;
+    }
+  }, [feedPool, returnToPostId]);
 
   // Articles already sitting in the main feed's visible window — used to
   // keep every in-feed suggestion rail from just echoing headlines the
@@ -176,7 +285,15 @@ function Home() {
           const slot = index % 8;
           return (
             <Fragment key={item.id}>
-              <PostCard post={item} />
+              {/* FIX: only the first card is above the fold on a cold
+                  open -- that's the one whose image should load eagerly
+                  (see ImageCarousel's `priority` prop). Every other card
+                  keeps the existing lazy behavior. */}
+              <PostCard
+                post={item}
+                priority={index === 0}
+                onImageUnavailable={() => markImageBroken(item.id)}
+              />
               {slot === 1 && <StandsRail showcase={showcase} />}
               {slot === 3 && <JournalRail journal={journal} />}
               {/* One AdSense unit per 8-post cycle — same cadence as the

@@ -6,13 +6,16 @@ import { fetchFeed, type FeedItem } from "@/lib/api";
 // see hooks/useLiveFeed.ts + lib/feedPersist.ts) can never cover, since
 // there's nothing to cache yet.
 //
-// Bounded with a short timeout on purpose: a loader that can hang
-// indefinitely on a slow/unreachable backend would bring back exactly the
-// "stuck loading" feel this is meant to fix. If it doesn't answer in
-// time, resolve with an empty list — the route still renders immediately,
-// and useLiveFeed's own WebSocket/REST-fallback + skeleton take over
-// client-side exactly as before this change.
-const LOADER_TIMEOUT_MS = 1200;
+// FIX: was 1200ms. That let a slow/unreachable backend add over a
+// second to *every* cold SSR response, which alone blew the "loads in
+// under 1s" target before a single byte reached the browser. 350ms is
+// enough for a same-region, nginx-microcached backend (see
+// deploy/nginx/nginx.conf) to answer comfortably, while guaranteeing the
+// route can never be held up by more than a third of a second. If it
+// doesn't answer in time, resolve with an empty list — the route still
+// renders immediately, and useLiveFeed's own WebSocket/REST-fallback +
+// skeleton take over client-side exactly as before.
+const LOADER_TIMEOUT_MS = 350;
 
 export async function loadFeedForRoute(category = "All"): Promise<FeedItem[]> {
   const controller = new AbortController();

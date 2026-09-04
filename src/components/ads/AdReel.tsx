@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ADSENSE_CLIENT } from "@/components/ads/AdSlot";
+import { useAdFillStatus, type AdFillStatus } from "@/hooks/useAdFillStatus";
 
 /**
  * A full-screen "reel" slot for the Updates feed. Visually matches
@@ -13,9 +14,20 @@ import { ADSENSE_CLIENT } from "@/components/ads/AdSlot";
  * AdSense dashboard (keep it separate from the Home feed unit so you can
  * see performance per-surface).
  */
-export function AdReel({ slot }: { slot: string }) {
+export function AdReel({
+  slot,
+  onStatusChange,
+}: {
+  slot: string;
+  /** Notifies the caller once AdSense resolves the request, so a parent
+   * wrapper (LazyAdReel's snap-scroll placeholder) can collapse itself
+   * too — this component returning `null` only removes what's *inside*
+   * that wrapper, not the wrapper's own full-height snap slot. */
+  onStatusChange?: (status: AdFillStatus) => void;
+}) {
   const insRef = useRef<HTMLModElement>(null);
   const pushed = useRef(false);
+  const status = useAdFillStatus(insRef);
 
   useEffect(() => {
     if (pushed.current || !insRef.current) return;
@@ -26,6 +38,16 @@ export function AdReel({ slot }: { slot: string }) {
       console.error("AdSense push failed", error);
     }
   }, []);
+
+  useEffect(() => {
+    onStatusChange?.(status);
+  }, [status, onStatusChange]);
+
+  // No fill — don't hold a blank "Sponsored" reel in the snap-scroll
+  // list. The parent LazyAdReel also collapses its wrapper via
+  // onStatusChange above, so this reel disappears from the scroll
+  // entirely instead of leaving an empty full-screen card behind.
+  if (status === "unfilled") return null;
 
   return (
     <section className="flex h-full w-full snap-start snap-always items-center justify-center bg-paper select-none">

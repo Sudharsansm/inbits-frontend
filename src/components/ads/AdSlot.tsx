@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from "react";
+import { useAdFillStatus } from "@/hooks/useAdFillStatus";
 
 /**
  * ------------------------------------------------------------------
@@ -12,8 +13,12 @@ import { useEffect, useId, useRef } from "react";
  *  - Each <AdSlot slot="..." /> below takes the numeric "ad unit ID" you get
  *    from Ads > By ad unit > Display ads > (create one, e.g. "In-feed native").
  *
- * The loader <script> itself is added once in src/routes/__root.tsx's
- * head(), not here — this file only renders the per-slot <ins> tag.
+ * The loader <script> itself is injected once, client-side after first
+ * paint, from src/routes/__root.tsx (RootComponent's idle-load effect) —
+ * not here, and not in head() -- this file only renders the per-slot
+ * <ins> tag. That's safe even if this component's push({}) runs before
+ * the script has loaded: adsbygoogle's array-based API just queues the
+ * request until the real script arrives and drains the queue.
  * ------------------------------------------------------------------
  */
 export const ADSENSE_CLIENT = "ca-pub-5505424042187351";
@@ -40,6 +45,7 @@ function AdSlotInner({
   const insRef = useRef<HTMLModElement>(null);
   const pushed = useRef(false);
   const reactId = useId();
+  const status = useAdFillStatus(insRef);
 
   useEffect(() => {
     // Guards against React 18 StrictMode's double-invoke in dev, and
@@ -55,6 +61,11 @@ function AdSlotInner({
       console.error("AdSense push failed", error);
     }
   }, []);
+
+  // No ad came back (or the request never resolved) — don't leave the
+  // card's border/label/padding sitting there empty, drop the slot
+  // entirely so the feed collapses around it.
+  if (status === "unfilled") return null;
 
   return (
     <div className={`mb-4 overflow-hidden rounded-xl border bg-card ${className}`}>

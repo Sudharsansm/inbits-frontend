@@ -23,6 +23,7 @@ function UpdateReelInner({
   onToggleSave,
   onShare,
   onToggleMute,
+  onImageUnavailable,
 }: {
   post: FeedItem;
   isLiked?: boolean;
@@ -41,6 +42,10 @@ function UpdateReelInner({
   onToggleSave: () => void;
   onShare: () => void;
   onToggleMute: () => void;
+  /** Called once if this reel's image can't be shown after all. Updates
+   * uses this to remove the post from the reel list entirely -- this
+   * app never shows a placeholder/letter in place of a real image. */
+  onImageUnavailable?: () => void;
 }) {
   const { track, category } = trackForItem(p);
   const { openArticle } = useArticleViewer();
@@ -85,10 +90,20 @@ function UpdateReelInner({
           />
         )}
         <ImageCarousel
-          images={p.images.length > 0 ? p.images : [p.image]}
+          // FIX: this used to be "extras if any, else the cover" -- if
+          // the scraper found any extra in-article photos but even one
+          // of THOSE failed to load, the whole reel got hidden even
+          // though the reliable cover image (`p.image`, also what the
+          // post detail page always shows) was never even tried. The
+          // cover is now always the first candidate; extras are
+          // additional slides, not a replacement.
+          images={
+            p.image ? [p.image, ...p.images.filter((img) => img !== p.image)] : p.images
+          }
           alt={p.title}
           className="h-full w-full"
           imgClassName="h-full object-cover"
+          onUnavailable={onImageUnavailable}
         />
         <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/60 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/50 to-transparent" />

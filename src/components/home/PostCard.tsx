@@ -16,7 +16,22 @@ import { useInterestProfile } from "@/lib/interests";
 import { sourceOriginLabel } from "@/lib/sourceOrigin";
 import { useTranslated } from "@/lib/i18n";
 
-function PostCardInner({ post }: { post: FeedItem }) {
+function PostCardInner({
+  post,
+  priority = false,
+  onImageUnavailable,
+}: {
+  post: FeedItem;
+  // Threaded through from Home so the first (above-the-fold) card can
+  // tell its image to load eagerly/high-priority instead of lazily --
+  // see components/common/ImageCarousel.tsx.
+  priority?: boolean;
+  /** Called once if this post's image can't be shown after all (every
+   * candidate URL failed to load). Home uses this to remove the post
+   * from the feed entirely -- this app never shows a placeholder/letter
+   * in place of a real image. */
+  onImageUnavailable?: () => void;
+}) {
   const { openArticle } = useArticleViewer();
 
   const publishedLabel = formatRelativeTime(post.publishedAt);
@@ -283,7 +298,7 @@ function PostCardInner({ post }: { post: FeedItem }) {
   };
 
   return (
-    <article className="feed-card w-full border-b border-border bg-paper">
+    <article data-post-id={post.id} className="feed-card w-full border-b border-border bg-paper">
       {/* ========================================================
           HEADER
       ======================================================== */}
@@ -353,9 +368,22 @@ function PostCardInner({ post }: { post: FeedItem }) {
           ==================================================== */}
 
           <ImageCarousel
-            images={post.images.length > 0 ? post.images : [post.image]}
+            // FIX: this used to be "extras if any, else the cover" --
+            // meaning if the scraper found any extra in-article photos
+            // but even one of THOSE failed to load, the whole post got
+            // hidden even though the reliable cover image (`post.image`,
+            // also what the post detail page always shows) was never
+            // even tried. The cover is now always the first candidate;
+            // any extras are additional slides, not a replacement.
+            images={
+              post.image
+                ? [post.image, ...post.images.filter((img) => img !== post.image)]
+                : post.images
+            }
             alt={post.title}
             imgClassName="aspect-square object-cover"
+            priority={priority}
+            onUnavailable={onImageUnavailable}
           />
 
           {/* Bottom gradient */}

@@ -31,6 +31,15 @@ type CacheEntry = {
 // scroll offset to restore to, because the list had just been emptied).
 const feedCache = new Map<string, CacheEntry>();
 
+/** Discards a cached feed so the next `useLiveFeed({ cacheKey })` mount
+ * starts fresh from `initialItems` instead of resuming whatever was
+ * cached — used when returning to Home/Updates from somewhere other
+ * than reading an article. See lib/feedReturnIntent.ts for when this is
+ * called. */
+export function clearFeedCache(key: string): void {
+  feedCache.delete(key);
+}
+
 /**
  * Keeps `items` in sync with the backend's `/ws/feed` socket, the way a
  * real social feed behaves:
