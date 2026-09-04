@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type FeedItem, type WsServerMessage, feedSocketUrl, fetchFeed } from "@/lib/api";
+import { loadPersistedFeed, savePersistedFeed } from "@/lib/feedPersist";
 
 type Options = {
   category?: string;
@@ -65,7 +66,21 @@ export function useLiveFeed({
 }: Options) {
   const key = cacheKey ?? category;
   const cached = feedCache.get(key);
-  const seed = cached?.items.length ? cached.items : initialItems;
+  // FIX: on a cold visit over a slow network, the SSR loader (see
+  // lib/feedLoader.ts) can time out and hand back an empty `initialItems`
+  // — which used to mean this hook started from nothing and the page sat
+  // blank/loading until the socket or REST fallback answered. Falling
+  // back to the small localStorage snapshot from the reader's *previous*
+  // visit (see lib/feedPersist.ts) means there's almost always something
+  // real to paint the very first frame, exactly like reopening
+  // Instagram shows your last-seen feed instantly before it refreshes —
+  // this never replaces the live network fetch below, it only seeds the
+  // first paint while that's in flight.
+  const seed = cached?.items.length
+    ? cached.items
+    : initialItems.length > 0
+      ? initialItems
+      : (loadPersistedFeed<FeedItem>(key) ?? []);
 
   const [items, setItems] = useState<FeedItem[]>(seed);
   const [connected, setConnected] = useState(false);
@@ -116,6 +131,15 @@ export function useLiveFeed({
       if (emptyStateTimer.current) clearTimeout(emptyStateTimer.current);
     };
   }, [loaded, items.length]);
+
+  // Keep the cross-visit snapshot fresh so the next cold visit (see the
+  // `seed` fallback above) has something recent to paint instantly. Capped
+  // and throttled internally by feedPersist itself — this just feeds it
+  // whatever's currently on screen whenever that changes.
+  useEffect(() => {
+    if (items.length === 0) return;
+    savePersistedFeed(key, items);
+  }, [items, key]);
 
   const setItemsTracked = useCallback(
     (updater: FeedItem[] | ((prev: FeedItem[]) => FeedItem[])) => {
