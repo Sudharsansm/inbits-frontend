@@ -12,6 +12,7 @@ import { Loader2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useLiveFeed } from "@/hooks/useLiveFeed";
 import { consumeFeedReturnIntent } from "@/lib/feedReturnIntent";
+import { getLastReelId, setLastReelId } from "@/lib/reelReturnPosition";
 import { loadFeedForRoute } from "@/lib/feedLoader";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { usePref } from "@/hooks/usePrefs";
@@ -129,16 +130,26 @@ function LazyAdReel({
 function Updates() {
   const initialItems = Route.useLoaderData();
 
-  // This only decides whether Updates also resets the reader's
-  // remembered scroll position on this mount (see the layout effects
-  // below): if we didn't just arrive here from reading an article (see
-  // lib/feedReturnIntent.ts), start scrolled to reel #1 instead of
-  // wherever it was left off -- the same way reopening Instagram's Reels
-  // tab after visiting another tab starts you from the top with fresh
-  // content.
+  // Decides whether Updates resets the reader's scroll position on this
+  // mount (see the layout effects below). Two sources, checked in order:
+  //
+  //  1. `feedReturnIntent` -- set the instant the reader taps into an
+  //     article (see lib/articleViewer.tsx) -- gives the exact post they
+  //     were reading.
+  //  2. `reelReturnPosition` -- continuously updated as the reader
+  //     scrolls (see the activeId IntersectionObserver below) -- gives
+  //     the last reel they were on, regardless of *why* they left:
+  //     Jobs, Search, Menu, backgrounding the tab, all of it.
+  //
+  // Unlike Home, Updates is a reels feed: like Instagram's Reels tab,
+  // switching away to any other page and back should drop you back on
+  // the same reel, not reset to the top -- only a genuinely fresh
+  // session, with nothing recorded by either source yet, starts at #1.
   const [{ resetOnMount, returnToPostId }] = useState(() => {
     const { intent, postId } = consumeFeedReturnIntent();
-    return { resetOnMount: intent === "reset", returnToPostId: postId };
+    if (intent === "preserve") return { resetOnMount: false, returnToPostId: postId };
+    const lastReelId = getLastReelId();
+    return { resetOnMount: !lastReelId, returnToPostId: lastReelId };
   });
 
   const {
@@ -278,7 +289,12 @@ function Updates() {
   }, [loadMore]);
 
   // Which reel is actually on screen right now — only its track plays,
-  // same as Instagram Reels never overlapping two audio tracks.
+  // same as Instagram Reels never overlapping two audio tracks. Also the
+  // one place that's continuously true as the reader scrolls, so it
+  // doubles as the source of truth for reelReturnPosition (see the
+  // resetOnMount/returnToPostId state above): every time the "current"
+  // reel changes, remember it as where to resume next time this page
+  // mounts, from anywhere.
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
@@ -287,7 +303,11 @@ function Updates() {
         const mostVisible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (mostVisible) setActiveId(mostVisible.target.getAttribute("data-post-id"));
+        if (mostVisible) {
+          const id = mostVisible.target.getAttribute("data-post-id");
+          setActiveId(id);
+          setLastReelId(id);
+        }
       },
       { root, threshold: [0.6, 0.75, 0.9] },
     );
