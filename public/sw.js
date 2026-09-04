@@ -1,29 +1,30 @@
 // InBits service worker.
 //
-// Strategy — tuned for "open the app on a slow connection and see the
-// same content instantly", the way installed apps like YouTube behave:
+// Scope, on purpose: this only ever caches things that are safe to serve
+// stale — the app shell (HTML) for offline/slow-network access, and
+// fingerprinted static assets (JS/CSS/icons, which Vite renames on every
+// build, so a cached one is never wrong). It never caches API data.
 //
-// - Navigations (HTML pages): stale-while-revalidate. If a cached copy of
-//   this URL exists, respond with it IMMEDIATELY — don't wait on the
-//   network at all — then fetch a fresh copy in the background to update
-//   the cache for next time. Only fall back to actually waiting on the
-//   network when there's nothing cached yet (a genuinely first-ever
-//   visit), and only fall back to offline.html when that network request
-//   also fails. This is a deliberate change from the previous
-//   network-first strategy: network-first means a slow connection makes
-//   *every* open wait for a slow response before the browser even
-//   considers the cache, which is the exact opposite of "instant".
-// - `/api/feed`, `/api/jobs`, `/api/article/*` (GET): same
-//   stale-while-revalidate idea, applied to the JSON the app renders
-//   instead of just the HTML shell. A repeat app open can now paint real
-//   articles from the last cached response before the network has said
-//   anything, while a background fetch quietly refreshes it — the live
-//   WebSocket in useLiveFeed still layers real-time updates on top once
-//   it connects.
-// - Static assets (/assets/*, icons, fonts): cache-first, unchanged —
-//   Vite fingerprints these filenames and they never change in place.
+// FIX: `/api/feed`, `/api/jobs`, `/api/article/*` used to be cached here
+// too (first stale-while-revalidate, then a network-first-with-fallback
+// version). Both turned out to be the wrong idea for this app: every one
+// of the app's own refresh mechanisms (the WebSocket's REST fallback,
+// pull-to-refresh, the 20s auto-poll in useLiveFeed, and the
+// visibilitychange/pageshow refresh on reopen) calls `fetch("/api/feed")`
+// under the hood, and *any* caching layer in front of that — service
+// worker or the browser's own HTTP cache — could silently answer those
+// calls with old data instead of a real network round trip. That's also
+// why an installed app and a plain Chrome tab could show identical,
+// stale content: they share one Cache Storage per origin.
+//
+// The fix is simply not caching this data at all, anywhere: these
+// requests are left alone below (not intercepted), so they go straight
+// to the network exactly as `lib/api.ts` sends them — which also sets
+// `cache: "no-store"` itself, bypassing the browser's native HTTP cache
+// too. The backend is the single source of truth for this data; nothing
+// in the frontend keeps its own copy of it across requests.
 
-const CACHE_VERSION = "inbits-v2";
+const CACHE_VERSION = "inbits-v4";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/favicon.svg"];
 
@@ -53,22 +54,10 @@ function isStaticAsset(url) {
   );
 }
 
-// The one set of GET endpoints worth serving stale-instantly: the data
-// that actually paints Home/Updates/Jobs. Deliberately NOT search or
-// health/translate — those are either per-query or wrong to serve stale.
-function isCacheableApi(url) {
-  return (
-    url.pathname === "/api/feed" ||
-    url.pathname === "/api/jobs" ||
-    url.pathname.startsWith("/api/article/") ||
-    url.pathname.startsWith("/api/jobs/")
-  );
-}
-
 /** Respond from cache immediately if present; either way, kick off a
- * network fetch that updates the cache for the *next* request. Falls
- * back to `onNoCacheNoNetwork()` only when there's neither a cached
- * response nor a successful network response. */
+ * network fetch that updates the cache for the *next* request. Used for
+ * navigations (the HTML shell) only — never for API data, see the NOTE
+ * at the top of this file. */
 function staleWhileRevalidate(request, onNoCacheNoNetwork) {
   return caches.open(CACHE_VERSION).then((cache) =>
     cache.match(request).then((cached) => {
@@ -99,21 +88,17 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (request.mode === "navigate") {
-    event.respondWith(
-      staleWhileRevalidate(request, () => caches.match(OFFLINE_URL)),
-    );
+  // API calls: deliberately not intercepted at all. Not caching them,
+  // not falling back to a cached copy — this service worker has nothing
+  // to do with them, they go straight to the network. See the NOTE at
+  // the top of this file for why.
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/ws/")) {
     return;
   }
 
-  if (isCacheableApi(url)) {
+  if (request.mode === "navigate") {
     event.respondWith(
-      staleWhileRevalidate(
-        request,
-        () => new Response(JSON.stringify({ items: [], total: 0 }), {
-          headers: { "content-type": "application/json" },
-        }),
-      ),
+      staleWhileRevalidate(request, () => caches.match(OFFLINE_URL)),
     );
     return;
   }

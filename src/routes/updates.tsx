@@ -10,7 +10,7 @@ import {
 } from "react";
 import { Loader2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { useLiveFeed, clearFeedCache } from "@/hooks/useLiveFeed";
+import { useLiveFeed } from "@/hooks/useLiveFeed";
 import { consumeFeedReturnIntent } from "@/lib/feedReturnIntent";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { usePref } from "@/hooks/usePrefs";
@@ -120,17 +120,17 @@ function LazyAdReel({
 }
 
 function Updates() {
-  // Consumed exactly once per mount, before useLiveFeed reads its cache:
-  // if we didn't just arrive here from reading an article (see
-  // lib/feedReturnIntent.ts), clear this page's cached feed so it starts
-  // fresh instead of resuming wherever it was left off -- the same way
-  // reopening Instagram's Reels tab after visiting another tab starts
-  // you from the top with fresh content, not your old scroll spot.
+  // useLiveFeed no longer keeps a stored feed to resume from — every
+  // mount starts empty and fetches live. This only decides whether
+  // Updates also resets the reader's remembered scroll position on this
+  // mount (see the layout effects below): if we didn't just arrive here
+  // from reading an article (see lib/feedReturnIntent.ts), start
+  // scrolled to reel #1 instead of wherever it was left off -- the same
+  // way reopening Instagram's Reels tab after visiting another tab
+  // starts you from the top with fresh content.
   const [{ resetOnMount, returnToPostId }] = useState(() => {
     const { intent, postId } = consumeFeedReturnIntent();
-    const reset = intent === "reset";
-    if (reset) clearFeedCache("updates");
-    return { resetOnMount: reset, returnToPostId: postId };
+    return { resetOnMount: intent === "reset", returnToPostId: postId };
   });
 
   const {

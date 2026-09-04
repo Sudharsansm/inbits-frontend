@@ -1,9 +1,11 @@
-// Home and Updates both keep their live feed cached across a route
-// unmount (see the module-level `feedCache` in hooks/useLiveFeed.ts) so
-// that opening an article and hitting Back lands you exactly where you
-// were, instead of an empty list reloading from scratch.
+// Home and Updates always fetch a fresh live feed on mount (useLiveFeed
+// keeps no stored feed data of its own — see hooks/useLiveFeed.ts). What
+// this tiny module preserves across that remount is just the reader's
+// *scroll position*: opening an article and hitting Back should land you
+// exactly where you were reading, once the fresh feed has loaded, rather
+// than always dropping you back at the top.
 //
-// But that same cache shouldn't survive a trip to a completely different
+// That scroll restore shouldn't survive a trip to a completely different
 // page (Jobs, Search, Stands, Menu, ...) — leaving Home for Jobs and
 // coming back should show fresh content from the top, the same way
 // switching away from Instagram's Home tab and back to it does, not
@@ -12,9 +14,10 @@
 // This tiny module is the switch between those two cases: `openArticle`
 // (lib/articleViewer.tsx) marks intent to "preserve" immediately before
 // navigating to a story. Home/Updates each consume that intent exactly
-// once on mount — if it says "preserve", they leave their cache alone;
-// otherwise (including a browser refresh, where this resets to its
-// default anyway) they clear their own cache and start fresh.
+// once on mount — if it says "preserve", they scroll the remembered post
+// back into view once it reappears in the fresh feed; otherwise
+// (including a browser refresh, where this resets to its default anyway)
+// they just start scrolled to the top.
 //
 // FIX (1): this used to carry only the preserve/reset flag, and
 // Home/Updates separately tried to restore a raw pixel scroll offset

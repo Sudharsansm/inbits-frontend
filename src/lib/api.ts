@@ -90,8 +90,23 @@ function resolveApiBase(): string {
 export const API_BASE_URL = resolveApiBase();
 export const WS_BASE_URL = API_BASE_URL.replace(/^http/, "ws");
 
+// FIX: the backend deliberately sends `Cache-Control: max-age=...,
+// stale-while-revalidate=...` on the feed/article/jobs endpoints (see
+// app/main.py) — a good thing for absorbing a burst of many requests for
+// the same snapshot, but it also means the *browser's own* HTTP cache
+// (a layer underneath both this fetch call and the service worker's
+// `fetch()` inside it) can silently answer a "give me fresh data" call
+// with a same-origin cached response, without ever reaching the network
+// or the service worker's network-first logic at all. `cache: "no-store"`
+// tells the browser to skip that layer entirely for these calls — every
+// one of them (WebSocket REST fallback, pull-to-refresh, the 20s
+// auto-poll, reopen-refresh) now genuinely round-trips to the server (or
+// the service worker's own cache, only if the network is actually down)
+// instead of ever being silently answered "the same as last time".
+const LIVE_DATA_FETCH_OPTS: RequestInit = { cache: "no-store" };
+
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal });
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...LIVE_DATA_FETCH_OPTS, signal });
   if (!res.ok) throw new Error(`${path} failed: HTTP ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -106,7 +121,10 @@ export async function fetchFeed(
 /** Returns null (not a thrown error) on 404 — callers decide what "not
  * found" means for their route (e.g. `notFound()` in a loader). */
 export async function fetchArticle(id: string, signal?: AbortSignal): Promise<FeedItem | null> {
-  const res = await fetch(`${API_BASE_URL}/api/article/${encodeURIComponent(id)}`, { signal });
+  const res = await fetch(`${API_BASE_URL}/api/article/${encodeURIComponent(id)}`, {
+    ...LIVE_DATA_FETCH_OPTS,
+    signal,
+  });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`/api/article/${id} failed: HTTP ${res.status}`);
   return res.json();
@@ -136,7 +154,10 @@ export async function fetchJobs(signal?: AbortSignal): Promise<{ items: RemoteJo
 }
 
 export async function fetchJob(id: string, signal?: AbortSignal): Promise<RemoteJob | null> {
-  const res = await fetch(`${API_BASE_URL}/api/jobs/${encodeURIComponent(id)}`, { signal });
+  const res = await fetch(`${API_BASE_URL}/api/jobs/${encodeURIComponent(id)}`, {
+    ...LIVE_DATA_FETCH_OPTS,
+    signal,
+  });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`/api/jobs/${id} failed: HTTP ${res.status}`);
   return res.json();

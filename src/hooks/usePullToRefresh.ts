@@ -24,6 +24,24 @@ export function usePullToRefresh({
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
   const pulling = useRef(false);
+  // FIX: onTouchEnd used to read `pullDistance`/`refreshing` from state,
+  // which meant this whole effect had to list them as dependencies —
+  // and since `setPullDistance` fires on every single touchmove pixel,
+  // that tore the listeners down and re-attached them dozens of times
+  // per gesture. Removing/re-adding a `{ passive: false }` touchmove
+  // listener mid-drag is exactly the kind of thing that makes a pull
+  // gesture feel broken or get randomly swallowed on a real phone
+  // (worse inside an installed/standalone PWA, where there's no browser
+  // chrome to fall back on if the gesture drops). Mirroring the same
+  // values into refs lets onTouchEnd/onTouchMove read the current value
+  // without the effect ever needing to re-run mid-gesture — it now binds
+  // its listeners exactly once per mount.
+  const pullDistanceRef = useRef(0);
+  const refreshingRef = useRef(false);
+  const setPullDistanceTracked = (value: number) => {
+    pullDistanceRef.current = value;
+    setPullDistance(value);
+  };
 
   useEffect(() => {
     if (disabled || typeof window === "undefined") return;
@@ -35,7 +53,7 @@ export function usePullToRefresh({
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      if (!atTop() || refreshing) return;
+      if (!atTop() || refreshingRef.current) return;
       startY.current = e.touches[0].clientY;
       pulling.current = true;
     };
@@ -44,32 +62,34 @@ export function usePullToRefresh({
       if (!pulling.current || startY.current === null) return;
       const delta = e.touches[0].clientY - startY.current;
       if (delta <= 0) {
-        setPullDistance(0);
+        setPullDistanceTracked(0);
         return;
       }
       if (!atTop()) {
         pulling.current = false;
-        setPullDistance(0);
+        setPullDistanceTracked(0);
         return;
       }
       // Only take over the gesture once it's clearly a downward pull, so
       // normal scrolling isn't hijacked.
       if (delta > 4) e.preventDefault();
-      setPullDistance(Math.min(delta * 0.55, MAX_PULL));
+      setPullDistanceTracked(Math.min(delta * 0.55, MAX_PULL));
     };
 
     const onTouchEnd = () => {
       if (!pulling.current) return;
       pulling.current = false;
       startY.current = null;
-      if (pullDistance >= TRIGGER_DISTANCE) {
+      if (pullDistanceRef.current >= TRIGGER_DISTANCE) {
+        refreshingRef.current = true;
         setRefreshing(true);
         Promise.resolve(onRefresh()).finally(() => {
+          refreshingRef.current = false;
           setRefreshing(false);
-          setPullDistance(0);
+          setPullDistanceTracked(0);
         });
       } else {
-        setPullDistance(0);
+        setPullDistanceTracked(0);
       }
     };
 
@@ -81,7 +101,11 @@ export function usePullToRefresh({
       target.removeEventListener("touchmove", onTouchMove as EventListener);
       target.removeEventListener("touchend", onTouchEnd as EventListener);
     };
-  }, [disabled, onRefresh, scrollRef, refreshing, pullDistance]);
+    // FIX: deliberately NOT depending on `pullDistance`/`refreshing` — see
+    // the refs above. `onRefresh` itself can still legitimately change
+    // (e.g. a new `category`), so it stays as the one real dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled, onRefresh, scrollRef]);
 
   return { pullDistance, refreshing, triggerDistance: TRIGGER_DISTANCE };
 }

@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { fetchArticle, fetchFeed, type FeedItem } from "@/lib/api";
-import { articleCache, type ArticleData } from "@/lib/articleCache";
+import { articleCache, getArticle, setArticle, type ArticleData } from "@/lib/articleCache";
 import { formatRelativeTime } from "@/lib/format";
 import { sourceOriginLabel } from "@/lib/sourceOrigin";
 import { useSavedPosts } from "@/lib/savedPosts";
@@ -58,7 +58,7 @@ export const Route = createFileRoute("/post/$id")({
 function PostPage() {
   const { id } = Route.useParams();
   const router = useRouter();
-  const [data, setData] = useState<ArticleData | null>(() => articleCache.get(id) ?? null);
+  const [data, setData] = useState<ArticleData | null>(() => getArticle(id) ?? null);
   const [notFound, setNotFound] = useState(false);
   const [errored, setErrored] = useState(false);
 
@@ -66,7 +66,7 @@ function PostPage() {
     setNotFound(false);
     setErrored(false);
 
-    const seeded = articleCache.get(id);
+    const seeded = getArticle(id);
     setData(seeded ?? null);
 
     // Already have the real thing (fetched in full on a previous visit
@@ -99,7 +99,7 @@ function PostPage() {
           .filter((p) => p.id !== post.id && p.category === post.category)
           .slice(0, 3);
         const result: ArticleData = { post, related, complete: true };
-        articleCache.set(id, result);
+        setArticle(id, result);
         setData(result);
       })
       .catch(() => {

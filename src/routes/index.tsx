@@ -10,7 +10,7 @@ import {
 } from "react";
 import { Loader2, WifiOff } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { useLiveFeed, clearFeedCache } from "@/hooks/useLiveFeed";
+import { useLiveFeed } from "@/hooks/useLiveFeed";
 import { consumeFeedReturnIntent } from "@/lib/feedReturnIntent";
 import { loadFeedForRoute } from "@/lib/feedLoader";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -77,19 +77,17 @@ export const Route = createFileRoute("/")({
 function Home() {
   const initialItems = Route.useLoaderData();
 
-  // Home's cacheKey defaults to its category ("All" — see the
-  // `cacheKey ?? category` fallback in useLiveFeed.ts). Consumed exactly
-  // once per mount, before useLiveFeed reads that cache: if we didn't
-  // just arrive here from reading an article (see
-  // lib/feedReturnIntent.ts), clear it so the feed starts fresh from the
-  // loader's data instead of resuming wherever it was left off — the
-  // same way reopening Instagram's Home tab after visiting another tab
-  // shows fresh content from the top rather than your old scroll spot.
+  // useLiveFeed no longer keeps a stored feed to resume from — every
+  // mount starts from the loader's fresh data and fetches live. This
+  // only decides whether Home also resets the reader's remembered
+  // scroll position on this mount (see the layout effects below): if we
+  // didn't just arrive here from reading an article (see
+  // lib/feedReturnIntent.ts), start scrolled to the top instead of
+  // wherever it was left off — the same way reopening Instagram's Home
+  // tab after visiting another tab shows fresh content from the top.
   const [{ resetOnMount, returnToPostId }] = useState(() => {
     const { intent, postId } = consumeFeedReturnIntent();
-    const reset = intent === "reset";
-    if (reset) clearFeedCache("All");
-    return { resetOnMount: reset, returnToPostId: postId };
+    return { resetOnMount: intent === "reset", returnToPostId: postId };
   });
 
   const { items, hasMore, connected, showEmptyState, loadMore, refresh } = useLiveFeed({

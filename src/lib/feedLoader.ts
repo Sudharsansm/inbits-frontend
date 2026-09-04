@@ -8,15 +8,12 @@ import { fetchFeed, type FeedItem } from "@/lib/api";
 // its first byte of HTML. Set to 0: the loader no longer waits on the
 // network at all, so the route is never held up by backend/latency,
 // full stop. In practice this means SSR almost always resolves with an
-// empty list and the *client* becomes the only real source of first
-// paint — via useLiveFeed's localStorage seed (lib/feedPersist.ts) for
-// a near-instant repeat visit, then the WebSocket/REST fallback filling
-// in real data a moment later. Worth knowing: this trades away
-// "sometimes SSR ships real content in the initial HTML" for "SSR is
-// never the bottleneck" — a genuinely first-ever visit (nothing cached
-// anywhere yet) still has to wait on that first client-side fetch, same
-// as before, it just no longer waits twice (once in SSR, again on the
-// client).
+// empty list and the *client* becomes the real source of first paint —
+// useLiveFeed opens its WebSocket (falling back to a direct REST call)
+// immediately on mount and fills in real data a moment later. There is
+// no client-side cache/persistence layer anymore (removed — every load
+// always goes straight to the backend), so this first client-side fetch
+// is the only path to real content, same as any other visit.
 const LOADER_TIMEOUT_MS = 0;
 
 export async function loadFeedForRoute(category = "All"): Promise<FeedItem[]> {
