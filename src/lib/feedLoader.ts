@@ -1,21 +1,23 @@
 import { fetchFeed, type FeedItem } from "@/lib/api";
 
 // Used by route `loader`s (Home, Updates) to seed real content into the
-// very first render — including the server-rendered HTML on a cold visit,
-// which is the one case client-side caching (in-memory + localStorage,
-// see hooks/useLiveFeed.ts + lib/feedPersist.ts) can never cover, since
-// there's nothing to cache yet.
+// very first render — including the server-rendered HTML on a cold visit.
 //
-// FIX: was 1200ms. That let a slow/unreachable backend add over a
-// second to *every* cold SSR response, which alone blew the "loads in
-// under 1s" target before a single byte reached the browser. 350ms is
-// enough for a same-region, nginx-microcached backend (see
-// deploy/nginx/nginx.conf) to answer comfortably, while guaranteeing the
-// route can never be held up by more than a third of a second. If it
-// doesn't answer in time, resolve with an empty list — the route still
-// renders immediately, and useLiveFeed's own WebSocket/REST-fallback +
-// skeleton take over client-side exactly as before.
-const LOADER_TIMEOUT_MS = 350;
+// FIX: was 1200ms, then 350ms, then 80ms — each step still meant the SSR
+// pass gambled some amount of time on the backend before the browser got
+// its first byte of HTML. Set to 0: the loader no longer waits on the
+// network at all, so the route is never held up by backend/latency,
+// full stop. In practice this means SSR almost always resolves with an
+// empty list and the *client* becomes the only real source of first
+// paint — via useLiveFeed's localStorage seed (lib/feedPersist.ts) for
+// a near-instant repeat visit, then the WebSocket/REST fallback filling
+// in real data a moment later. Worth knowing: this trades away
+// "sometimes SSR ships real content in the initial HTML" for "SSR is
+// never the bottleneck" — a genuinely first-ever visit (nothing cached
+// anywhere yet) still has to wait on that first client-side fetch, same
+// as before, it just no longer waits twice (once in SSR, again on the
+// client).
+const LOADER_TIMEOUT_MS = 0;
 
 export async function loadFeedForRoute(category = "All"): Promise<FeedItem[]> {
   const controller = new AbortController();
