@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { type FeedItem, type WsServerMessage, feedSocketUrl, fetchFeed } from "@/lib/api";
 
 type Options = {
@@ -61,11 +61,13 @@ const feedCache = new Map<string, FeedItem[]>();
  *  - Opening the app / returning to a page you already loaded shows what
  *    you already had, instantly — no reset, no spinner.
  *  - Articles scraped while you're on the page are pushed over the socket
- *    in real time and appended to the *end* of the feed immediately, so
- *    scrolling down never runs out of content — the feed tops itself up
- *    continuously instead of capping out at whatever loaded first.
- *    Appending at the end (never the top) means this can never yank
- *    content the reader is currently looking at.
+ *    in real time and spliced in at the *front* of the feed immediately
+ *    (see `prependFresh`), matching the backend's newest-first order, so
+ *    fresh stories are actually where the reader will see them instead of
+ *    buried behind everything already loaded. A layout effect
+ *    compensates the scroll position by exactly however many pixels that
+ *    added, so this can never yank content the reader is currently
+ *    looking at.
  *  - `loadMore()` (driven by the infinite-scroll sentinel) asks the
  *    backend for the next page and appends it the same way, so scrolling
  *    to the bottom keeps extending the feed rather than ever showing a
@@ -111,6 +113,9 @@ export function useLiveFeed({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // How many freshly-scraped articles are waiting, queued, for the reader
+  // to ask to see — see `queuePending`/`revealPending` below.
+  const [pendingCount, setPendingCount] = useState(0);
 
   const wsRef = useRef<WebSocket | null>(null);
   const cursorRef = useRef(seed.length);
@@ -120,6 +125,9 @@ export function useLiveFeed({
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttempt = useRef(0);
   const emptyStateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Newest-first queue of articles that have arrived live but haven't
+  // been shown yet — see `queuePending`/`revealPending`.
+  const pendingItemsRef = useRef<FeedItem[]>([]);
 
   // Arm/disarm the "genuinely empty" grace window whenever loaded-ness or
   // the item count changes, instead of re-deriving it inline on render.
@@ -167,21 +175,110 @@ export function useLiveFeed({
     [setItemsTracked],
   );
 
-  /** Auto-merge a newly-scraped batch straight into the visible feed —
-   * no queue, no tap, no notification. Mirrors real Instagram: the feed
-   * tops itself up on its own the moment fresh content exists. Always
-   * appended at the *end* (never the top), which is what makes doing
-   * this automatically safe — nothing above the reader's current scroll
-   * position ever moves, so new stories just extend the feed downward
-   * for them to scroll into, instead of yanking what's on screen. */
+  // FIX: every "there's fresh content" path here used to append incoming
+  // items to the *end* of `items`. That was safe for scroll position, but
+  // wrong for freshness: the backend's snapshot/buffer is newest-first
+  // (see broadcaster.py's `appendleft`), so appending genuinely-new
+  // articles after everything already loaded buried them behind however
+  // many older items were already on screen (up to the full 300-item
+  // buffer) — the reader would have to scroll past all of that to ever
+  // see them, which in practice reads as "new articles never show up".
+  // Only a full reload (a fresh SSR/loader snapshot, newest-first from
+  // index 0) ever visibly surfaced them, which is why it looked like
+  // manual refresh "worked" and everything else didn't.
+  //
+  // The fix: put fresh items where they actually belong — at the *front*
+  // — and instead solve the scroll-jump problem the old code was really
+  // guarding against by compensating for it directly. `pendingScrollFix`
+  // records the page's height immediately before the new items are
+  // spliced in; the layout effect right below runs after they've painted
+  // and nudges the scroll position down by exactly however many pixels
+  // that added, so whatever the reader was already looking at stays
+  // pixel-for-pixel in place. This is the same trick real feeds (Twitter,
+  // Instagram) use to land new posts above what you're reading without
+  // yanking your place.
+  const pendingScrollFix = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (pendingScrollFix.current === null) return;
+    if (typeof document === "undefined" || typeof window === "undefined") {
+      pendingScrollFix.current = null;
+      return;
+    }
+    const before = pendingScrollFix.current;
+    pendingScrollFix.current = null;
+    const delta = document.documentElement.scrollHeight - before;
+    if (delta > 0) window.scrollBy(0, delta);
+  }, [items]);
+
+  /** Splice freshly-arrived items in at the front of the feed immediately
+   * — no queue, no tap. Reserved for moments that are already an
+   * explicit "start fresh" point, the same way Instagram only actually
+   * re-sorts your feed on a deliberate pull-to-refresh or a cold re-open,
+   * never silently underneath you while you're mid-scroll: a remount's
+   * "initial" socket message finding a cached feed already on screen
+   * (Home → article → Back, tab-switching), manual pull-to-refresh, and
+   * the reopen-after-backgrounded refresh. `loadMore`'s pagination is the
+   * one thing that deliberately stays append-at-the-end below — that's
+   * older content further back in time, which belongs after what's
+   * already loaded, not before it. For a live push or background poll
+   * that arrives *while the reader is actively on the page*, see
+   * `queuePending` instead — those don't touch the feed at all until the
+   * reader asks to see them. */
+  const prependFresh = useCallback(
+    (incoming: FeedItem[]) => {
+      const fresh = incoming.filter((i) => !seenIds.current.has(i.id));
+      if (fresh.length === 0) return;
+      fresh.forEach((i) => seenIds.current.add(i.id));
+      cursorRef.current += fresh.length;
+      if (typeof document !== "undefined") {
+        pendingScrollFix.current = document.documentElement.scrollHeight;
+      }
+      setItemsTracked((prev) => [...fresh, ...prev]);
+    },
+    [setItemsTracked],
+  );
+
   const autoMerge = useCallback(
     (incoming: FeedItem[]) => {
-      const freshCount = incoming.filter((i) => !seenIds.current.has(i.id)).length;
-      mergeUnique(incoming, "end");
-      cursorRef.current += freshCount;
+      prependFresh(incoming);
     },
-    [mergeUnique],
+    [prependFresh],
   );
+
+  // FIX: live WebSocket pushes and the background poll used to call
+  // `prependFresh` directly — technically correct order, but it meant
+  // the feed could re-shuffle itself out from under a reader mid-scroll,
+  // which isn't actually how Instagram behaves: Instagram never rewrites
+  // what's on your screen while you're looking at it. New posts wait,
+  // announced by a small "N new posts" pill, until you tap it (or pull
+  // to refresh, or reopen the app) to bring them in. `queuePending` is
+  // that waiting room: it marks incoming items as seen (so nothing else
+  // re-queues or re-fetches them) but holds them out of `items` — and
+  // out of view — until `revealPending` is called.
+  const queuePending = useCallback((incoming: FeedItem[]) => {
+    const fresh = incoming.filter((i) => !seenIds.current.has(i.id));
+    if (fresh.length === 0) return;
+    fresh.forEach((i) => seenIds.current.add(i.id));
+    pendingItemsRef.current = [...fresh, ...pendingItemsRef.current];
+    setPendingCount(pendingItemsRef.current.length);
+  }, []);
+
+  /** Brings whatever's queued in `queuePending` into view — this is the
+   * "N new posts" pill's tap handler. Splices the queue in at the front
+   * (same newest-first order as everything else) and, since this is
+   * always a deliberate reader action, scrolls them to the top to
+   * actually see it rather than silently keeping their old scroll
+   * position the way the passive paths do. */
+  const revealPending = useCallback(() => {
+    const pending = pendingItemsRef.current;
+    if (pending.length === 0) return;
+    pendingItemsRef.current = [];
+    setPendingCount(0);
+    cursorRef.current += pending.length;
+    setItemsTracked((prev) => [...pending, ...prev]);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [setItemsTracked]);
 
   useEffect(() => {
     reconnectAttempt.current = 0;
@@ -252,17 +349,11 @@ export function useLiveFeed({
             setLoaded(true);
             break;
           case "new_item":
-            // Real-time push from the crawler: append straight onto the
-            // *end* of the feed and let the infinite-scroll sentinel pick
-            // it up naturally as the reader scrolls down — this is what
-            // keeps the feed continuously topped up with fresh stories
-            // instead of capping out once the first page is exhausted.
-            // Appending at the end (never the top) is what makes this
-            // safe to do live: it can never yank content the reader is
-            // currently looking at, since nothing above their scroll
-            // position ever moves.
-            mergeUnique([msg.item], "end");
-            cursorRef.current += 1;
+            // Real-time push from the crawler while the reader's
+            // actively on the page: queue it (see `queuePending` above)
+            // instead of touching the feed — it shows up as a "N new
+            // posts" pill, not a silent reshuffle underneath them.
+            queuePending([msg.item]);
             setLoaded(true);
             break;
           case "more_items":
@@ -300,7 +391,7 @@ export function useLiveFeed({
       ws?.close();
       wsRef.current = null;
     };
-  }, [category, mergeUnique, autoMerge, setItemsTracked]);
+  }, [category, mergeUnique, autoMerge, prependFresh, queuePending, setItemsTracked]);
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore) return;
@@ -333,30 +424,27 @@ export function useLiveFeed({
     }
   }, [category, hasMore, loadingMore, mergeUnique, pageSize]);
 
-  /** Manual refresh — pull-to-refresh, a refresh action, etc. Tops up
+  /** Manual refresh — pull-to-refresh, a refresh action, etc. — and also
+   * reused for the reopen-after-backgrounded case below. Both are
+   * deliberate "start fresh" moments (the reader asked, or just came
+   * back), so unlike a live push this reveals immediately: first
+   * whatever's already sitting in the pending queue (no need to make
+   * someone who just pulled to refresh *also* tap a pill), then tops up
    * against the REST snapshot in case the socket's been silently
-   * reconnecting. New items are appended after what's already on screen,
-   * continuing the feed downward instead of jumping to the top. The
-   * socket itself (`new_item`/`initial`, above) already keeps the feed
-   * automatically topped up in real time — this exists as a fallback for
-   * whenever the reader explicitly asks for one, or the socket's been
-   * down. */
+   * reconnecting. Fresh items are spliced in at the front (see
+   * `prependFresh` above). */
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      revealPending();
       const { items: snapshot } = await fetchFeed(category);
-      const fresh = snapshot.filter((i) => !seenIds.current.has(i.id));
-      if (fresh.length > 0) {
-        fresh.forEach((i) => seenIds.current.add(i.id));
-        cursorRef.current += fresh.length;
-        setItemsTracked((prev) => [...prev, ...fresh]);
-      }
+      prependFresh(snapshot);
     } catch {
       /* offline — nothing to refresh with, keep current items as-is */
     } finally {
       setRefreshing(false);
     }
-  }, [category, setItemsTracked]);
+  }, [category, prependFresh, revealPending]);
 
   // FIX: previously the only way to see fresh articles that arrived while
   // the app was closed/backgrounded was to manually pull down. Instagram
@@ -365,9 +453,9 @@ export function useLiveFeed({
   // once the tab/app has been hidden for more than a few seconds (a real
   // "closed and reopened", not just a half-second flick to another app
   // and back) and *comes back* visible, run the same `refresh()` used by
-  // pull-to-refresh — reusing it means this gets the exact same
-  // append-at-the-end, never-yank-your-scroll-position behavior for
-  // free. Guarded on there already being items on screen so this never
+  // pull-to-refresh — reusing it means this also immediately reveals
+  // anything that piled up in the pending queue while the tab was away.
+  // Guarded on there already being items on screen so this never
   // fires during the very first cold load, which the loader/socket/REST
   // fallback above already own.
   const hiddenAtRef = useRef<number | null>(null);
@@ -403,31 +491,28 @@ export function useLiveFeed({
     };
   }, [refresh]);
 
-  // Automatic background top-up, independent of the socket entirely (see
-  // AUTO_POLL_INTERVAL_MS above for why). Silent — no spinner, no
-  // "refreshing" state flip — it just quietly extends the feed downward
-  // with whatever's new, exactly like `refresh()`, so the reader's
-  // current scroll position is never touched. Skips a tick whenever the
-  // tab is hidden/backgrounded, since the visibilitychange effect above
-  // already covers that case on its own terms when the tab comes back.
+  // Automatic background check, independent of the socket entirely (see
+  // AUTO_POLL_INTERVAL_MS above for why). Queues whatever's new (see
+  // `queuePending`) instead of touching the feed directly — same as a
+  // live WebSocket push, this surfaces as the "N new posts" pill rather
+  // than silently reshuffling what the reader's looking at. Skips a tick
+  // whenever the tab is hidden/backgrounded, since the visibilitychange
+  // effect above already covers that case (as an immediate reveal) when
+  // the tab comes back.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const id = setInterval(() => {
       if (document.visibilityState !== "visible") return;
       fetchFeed(category)
         .then(({ items: snapshot }) => {
-          const fresh = snapshot.filter((i) => !seenIds.current.has(i.id));
-          if (fresh.length === 0) return;
-          fresh.forEach((i) => seenIds.current.add(i.id));
-          cursorRef.current += fresh.length;
-          setItemsTracked((prev) => [...prev, ...fresh]);
+          queuePending(snapshot);
         })
         .catch(() => {
           /* offline or backend unreachable this tick — try again next one */
         });
     }, AUTO_POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [category, setItemsTracked]);
+  }, [category, queuePending]);
 
   return {
     items,
@@ -445,5 +530,10 @@ export function useLiveFeed({
     loadMore,
     refreshing,
     refresh,
+    // How many fresh articles are queued and waiting — drive a "N new
+    // posts" pill off this.
+    pendingCount,
+    // Tap handler for that pill: brings the queued articles into view.
+    revealPending,
   };
 }

@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Loader2, WifiOff } from "lucide-react";
+import { ArrowUp, Loader2, WifiOff } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useLiveFeed } from "@/hooks/useLiveFeed";
 import { consumeFeedReturnIntent } from "@/lib/feedReturnIntent";
@@ -90,11 +90,12 @@ function Home() {
     return { resetOnMount: intent === "reset", returnToPostId: postId };
   });
 
-  const { items, hasMore, connected, showEmptyState, loadMore, refresh } = useLiveFeed({
-    category: "All",
-    pageSize: 10,
-    initialItems,
-  });
+  const { items, hasMore, connected, showEmptyState, loadMore, refresh, pendingCount, revealPending } =
+    useLiveFeed({
+      category: "All",
+      pageSize: 10,
+      initialItems,
+    });
   const sentinel = useRef<HTMLDivElement>(null);
 
   const restoredRef = useRef(false);
@@ -261,6 +262,23 @@ function Home() {
           className={`h-4 w-4 ${refreshing || pullDistance >= triggerDistance ? "animate-spin" : ""}`}
         />
       </div>
+
+      {/* Instagram-style "N new posts" pill: freshly-scraped articles wait
+          here — not silently spliced into the feed — until the reader
+          taps it, so what they're currently looking at (their "first
+          post") never gets reshuffled out from under them mid-read. */}
+      {pendingCount > 0 && (
+        <div className="sticky top-2 z-20 flex justify-center">
+          <button
+            type="button"
+            onClick={revealPending}
+            className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground shadow-md transition-transform active:scale-95"
+          >
+            <ArrowUp className="h-3.5 w-3.5" />
+            {pendingCount === 1 ? "1 new story" : `${pendingCount} new stories`}
+          </button>
+        </div>
+      )}
 
       {/* Instagram-style vertical post feed, backed live by the crawler. */}
       <section className="flex flex-col">
