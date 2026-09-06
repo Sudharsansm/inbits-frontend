@@ -24,7 +24,7 @@
 // too. The backend is the single source of truth for this data; nothing
 // in the frontend keeps its own copy of it across requests.
 
-const CACHE_VERSION = "inbits-v4";
+const CACHE_VERSION = "inbits-v5";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE_URLS = [OFFLINE_URL, "/manifest.webmanifest", "/favicon.svg"];
 
@@ -41,7 +41,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))))
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))),
+      )
       .then(() => self.clients.claim()),
   );
 });
@@ -54,31 +56,45 @@ function isStaticAsset(url) {
   );
 }
 
-/** Respond from cache immediately if present; either way, kick off a
- * network fetch that updates the cache for the *next* request. Used for
- * navigations (the HTML shell) only — never for API data, see the NOTE
- * at the top of this file. */
-function staleWhileRevalidate(request, onNoCacheNoNetwork) {
-  return caches.open(CACHE_VERSION).then((cache) =>
-    cache.match(request).then((cached) => {
-      const networkFetch = fetch(request)
-        .then((response) => {
-          if (response && response.ok) cache.put(request, response.clone());
-          return response;
-        })
-        .catch(() => undefined);
+// FIX: navigations (the actual HTML document) used to be served
+// stale-while-revalidate — cache first, instantly, and only refresh the
+// cache quietly in the background. That's fine for a pure static shell,
+// but this app's HTML is server-rendered with real feed data baked into
+// it for first paint (see feedLoader.ts / the route `loader`s). Serving
+// a *cached* copy of that document instantly means the very first thing
+// a reader sees on reopening the app/PWA is whatever snapshot happened
+// to be on screen the last time the network was reached — old articles,
+// stale counts, sometimes a half-broken error page if that's what got
+// cached — with real content only swapping in a moment later once
+// useLiveFeed's socket/REST fallback catches up. That's exactly the
+// "shows old data first" symptom. Network-first fixes it: always try
+// the network for the document itself (bounded to a short timeout so a
+// dead connection doesn't hang the app open), and only fall back to
+// whatever's cached — or the offline page — when the network genuinely
+// isn't reachable. The cache is still kept warm on every successful
+// fetch purely as that offline fallback, never as the primary source.
+const NAVIGATION_NETWORK_TIMEOUT_MS = 3000;
 
-      if (cached) {
-        // Don't block the response on the network at all — that's the
-        // whole point on a slow connection. Let it update the cache
-        // quietly in the background instead.
-        networkFetch.catch(() => {});
-        return cached;
-      }
+function networkFirst(request, onOffline) {
+  return caches.open(CACHE_VERSION).then((cache) => {
+    const networkFetch = fetch(request).then((response) => {
+      if (response && response.ok) cache.put(request, response.clone());
+      return response;
+    });
 
-      return networkFetch.then((response) => response ?? onNoCacheNoNetwork());
-    }),
-  );
+    // Prevent an unhandled-rejection warning if the network loses the
+    // race below and then fails anyway — the cache-put above already
+    // only runs on success, so there's nothing else to do with it here.
+    networkFetch.catch(() => {});
+
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("navigation-timeout")), NAVIGATION_NETWORK_TIMEOUT_MS),
+    );
+
+    return Promise.race([networkFetch, timeout]).catch(() =>
+      cache.match(request).then((cached) => cached ?? onOffline()),
+    );
+  });
 }
 
 self.addEventListener("fetch", (event) => {
@@ -97,9 +113,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(
-      staleWhileRevalidate(request, () => caches.match(OFFLINE_URL)),
-    );
+    event.respondWith(networkFirst(request, () => caches.match(OFFLINE_URL)));
     return;
   }
 

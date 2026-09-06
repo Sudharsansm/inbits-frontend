@@ -6,9 +6,15 @@ export const Route = createFileRoute("/menu/notifications")({
   head: () => ({
     meta: [
       { title: "Notification preferences · InBits" },
-      { name: "description", content: "Choose your InBits digest time, breaking alerts and channel pings." },
+      {
+        name: "description",
+        content: "Choose your InBits digest time, breaking alerts and channel pings.",
+      },
       { property: "og:title", content: "Notification preferences · InBits" },
-      { property: "og:description", content: "Choose your InBits digest time, breaking alerts and channel pings." },
+      {
+        property: "og:description",
+        content: "Choose your InBits digest time, breaking alerts and channel pings.",
+      },
     ],
   }),
   component: NotificationPrefs,
@@ -24,7 +30,11 @@ function NotificationPrefs() {
   return (
     <MenuPage title="Notification preferences" subtitle="Only what you asked for">
       <Card>
-        <Row label="Daily digest" hint="One quiet roundup each morning" right={<Switch label="Daily digest" on={digest} onToggle={() => setDigest(!digest)} />} />
+        <Row
+          label="Daily digest"
+          hint="One quiet roundup each morning"
+          right={<Switch label="Daily digest" on={digest} onToggle={() => setDigest(!digest)} />}
+        />
         <Row
           label="Digest time"
           hint="Delivered in your local time"
@@ -37,11 +47,29 @@ function NotificationPrefs() {
             />
           }
         />
-        <Row label="Breaking news" hint="Rare, high-signal alerts" right={<Switch label="Breaking news" on={breaking} onToggle={() => setBreaking(!breaking)} />} />
-        <Row label="Channel updates" hint="New episodes from channels you follow" right={<Switch label="Channel updates" on={channels} onToggle={() => setChannels(!channels)} />} />
-        <Row label="Job matches" hint="Roles that fit your interests" right={<Switch label="Job matches" on={jobs} onToggle={() => setJobs(!jobs)} />} />
+        <Row
+          label="Breaking news"
+          hint="Rare, high-signal alerts"
+          right={
+            <Switch label="Breaking news" on={breaking} onToggle={() => setBreaking(!breaking)} />
+          }
+        />
+        <Row
+          label="Channel updates"
+          hint="New episodes from channels you follow"
+          right={
+            <Switch label="Channel updates" on={channels} onToggle={() => setChannels(!channels)} />
+          }
+        />
+        <Row
+          label="Job matches"
+          hint="Roles that fit your interests"
+          right={<Switch label="Job matches" on={jobs} onToggle={() => setJobs(!jobs)} />}
+        />
       </Card>
-      <p className="mt-3 text-[11px] text-muted-foreground">Changes save automatically on this device.</p>
+      <p className="mt-3 text-[11px] text-muted-foreground">
+        Changes save automatically on this device.
+      </p>
     </MenuPage>
   );
 }

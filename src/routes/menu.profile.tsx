@@ -6,9 +6,15 @@ export const Route = createFileRoute("/menu/profile")({
   head: () => ({
     meta: [
       { title: "Profile · InBits" },
-      { name: "description", content: "Edit your InBits reader profile, handle, city and reading interests." },
+      {
+        name: "description",
+        content: "Edit your InBits reader profile, handle, city and reading interests.",
+      },
       { property: "og:title", content: "Profile · InBits" },
-      { property: "og:description", content: "Edit your InBits reader profile, handle, city and reading interests." },
+      {
+        property: "og:description",
+        content: "Edit your InBits reader profile, handle, city and reading interests.",
+      },
     ],
   }),
   component: ProfilePage,
@@ -69,7 +75,9 @@ function ProfilePage() {
                   key={i}
                   onClick={() => setPicked(on ? picked.filter((x) => x !== i) : [...picked, i])}
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                    on ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"
+                    on
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border text-muted-foreground"
                   }`}
                 >
                   {i}

@@ -7,9 +7,15 @@ export const Route = createFileRoute("/menu/settings")({
   head: () => ({
     meta: [
       { title: "Settings · InBits" },
-      { name: "description", content: "Set theme, language, text size and data saver options for InBits." },
+      {
+        name: "description",
+        content: "Set theme, language, text size and data saver options for InBits.",
+      },
       { property: "og:title", content: "Settings · InBits" },
-      { property: "og:description", content: "Set theme, language, text size and data saver options for InBits." },
+      {
+        property: "og:description",
+        content: "Set theme, language, text size and data saver options for InBits.",
+      },
     ],
   }),
   component: SettingsPage,
@@ -37,7 +43,11 @@ function SettingsPage() {
   return (
     <MenuPage title="Settings" subtitle="Theme, language and reading comfort">
       <Card>
-        <Row label="Dark mode" hint="Easier on late-night eyes" right={<Switch label="Dark mode" on={dark} onToggle={() => setDark(!dark)} />} />
+        <Row
+          label="Dark mode"
+          hint="Easier on late-night eyes"
+          right={<Switch label="Dark mode" on={dark} onToggle={() => setDark(!dark)} />}
+        />
         <Row
           label="Text size"
           hint="Applies across the app"
@@ -48,7 +58,9 @@ function SettingsPage() {
                   key={s}
                   onClick={() => setSize(s)}
                   className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    size === s ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"
+                    size === s
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border text-muted-foreground"
                   }`}
                 >
                   {s}
@@ -73,8 +85,20 @@ function SettingsPage() {
             </select>
           }
         />
-        <Row label="Data saver" hint="Load lighter images" right={<Switch label="Data saver" on={dataSaver} onToggle={() => setDataSaver(!dataSaver)} />} />
-        <Row label="Autoplay media" hint="Play video in Updates automatically" right={<Switch label="Autoplay media" on={autoplay} onToggle={() => setAutoplay(!autoplay)} />} />
+        <Row
+          label="Data saver"
+          hint="Load lighter images"
+          right={
+            <Switch label="Data saver" on={dataSaver} onToggle={() => setDataSaver(!dataSaver)} />
+          }
+        />
+        <Row
+          label="Autoplay media"
+          hint="Play video in Updates automatically"
+          right={
+            <Switch label="Autoplay media" on={autoplay} onToggle={() => setAutoplay(!autoplay)} />
+          }
+        />
       </Card>
       <p className="mt-3 text-center text-[11px] text-muted-foreground">InBits · version 1.0.0</p>
     </MenuPage>

@@ -37,9 +37,7 @@ export function ChannelsTab({ channels }: { channels: Channel[] }) {
               />
               <div className="min-w-0 flex-1">
                 <div className="serif text-base font-bold leading-snug">{c.name}</div>
-                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                  {c.description}
-                </p>
+                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{c.description}</p>
                 <div className="mt-1 text-[11px] font-semibold text-primary">
                   {c.stories.length} stories
                 </div>

@@ -64,7 +64,8 @@ function clearPersistedInstalled() {
 
 function isStandaloneNow(): boolean {
   return (
-    (typeof window.matchMedia === "function" && window.matchMedia("(display-mode: standalone)").matches) ||
+    (typeof window.matchMedia === "function" &&
+      window.matchMedia("(display-mode: standalone)").matches) ||
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
@@ -77,7 +78,9 @@ function isStandaloneNow(): boolean {
  */
 async function refreshInstalledFromBrowser() {
   const getInstalledRelatedApps = (
-    navigator as Navigator & { getInstalledRelatedApps?: () => Promise<Array<{ platform: string }>> }
+    navigator as Navigator & {
+      getInstalledRelatedApps?: () => Promise<Array<{ platform: string }>>;
+    }
   ).getInstalledRelatedApps;
   if (typeof getInstalledRelatedApps !== "function") return;
   try {
@@ -104,7 +107,12 @@ if (typeof window !== "undefined") {
   const standaloneNow = isStandaloneNow();
   installed = standaloneNow || readPersistedInstalled();
   if (standaloneNow) persistInstalled();
-  console.log("[installPromptStore] initial: standaloneNow =", standaloneNow, "installed =", installed); // TEMP DEBUG
+  console.log(
+    "[installPromptStore] initial: standaloneNow =",
+    standaloneNow,
+    "installed =",
+    installed,
+  ); // TEMP DEBUG
 
   void refreshInstalledFromBrowser();
   window.addEventListener("focus", () => void refreshInstalledFromBrowser());

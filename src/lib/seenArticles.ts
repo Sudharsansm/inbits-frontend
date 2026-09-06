@@ -56,11 +56,7 @@ export function markSeen(ids: Iterable<string>, surface: string): void {
  * leave a page looking nearly empty, which is worse than an occasional
  * repeat.
  */
-export function excludeSeen<T extends { id: string }>(
-  items: T[],
-  surface: string,
-  min = 8,
-): T[] {
+export function excludeSeen<T extends { id: string }>(items: T[], surface: string, min = 8): T[] {
   const rest = items.filter((item) => {
     const set = seenBy.get(item.id);
     if (!set) return true;
@@ -69,5 +65,34 @@ export function excludeSeen<T extends { id: string }>(
     }
     return true; // only ever seen on `surface` itself -> keep
   });
+  return rest.length >= min ? rest : items;
+}
+
+/**
+ * The opposite of `excludeSeen`: drop anything *this same* `surface* has
+ * already shown, instead of protecting it. `excludeSeen`'s whole point is
+ * that a page never excludes its own past marks, so a normal re-render
+ * (loadMore, a socket push, coming back mid-scroll) never shrinks or
+ * reshuffles what's already showing.
+ *
+ * But that's the wrong rule for the one case where a page is landing on
+ * a genuinely fresh visit — not restoring a remembered position, just
+ * starting over (see Updates' `resetOnMount` in routes/updates.tsx). In
+ * that case a reader coming back from Jobs/Search/Menu should see
+ * content they haven't personally scrolled past on *this* page before,
+ * not the same reels replayed from the top. This is what makes that
+ * possible: it's called only for that one fresh-landing case, never for
+ * the normal ongoing-session renders `excludeSeen` already covers.
+ *
+ * Same never-fewer-than-`min` safety net, for the same reason: a reader
+ * who has genuinely scrolled through everything available shouldn't be
+ * left looking at an empty page — a repeat is better than nothing.
+ */
+export function excludeAlreadyShownHere<T extends { id: string }>(
+  items: T[],
+  surface: string,
+  min = 8,
+): T[] {
+  const rest = items.filter((item) => !seenBy.get(item.id)?.has(surface));
   return rest.length >= min ? rest : items;
 }

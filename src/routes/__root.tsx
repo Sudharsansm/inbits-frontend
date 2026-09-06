@@ -153,13 +153,18 @@ function RootComponent() {
       document.head.appendChild(script);
     };
 
-    // Plain feature-detect via `any` rather than typing against the DOM
-    // lib's requestIdleCallback signature directly -- avoids fighting
-    // whatever `lib` your tsconfig targets. Falls back to a timeout on
-    // Safari/older browsers, which don't implement it.
-    const win = window as any;
+    // Feature-detect requestIdleCallback without `any` -- it's in the DOM
+    // lib but not guaranteed at runtime (Safari/older browsers don't
+    // implement it), so it's typed as optional instead of cast away.
+    type IdleWindow = Window & {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const win = window as IdleWindow;
     const hasIdle = typeof win.requestIdleCallback === "function";
-    const idleId: number = hasIdle ? win.requestIdleCallback(loadAds) : win.setTimeout(loadAds, 2000);
+    const idleId: number = hasIdle
+      ? win.requestIdleCallback!(loadAds)
+      : window.setTimeout(loadAds, 2000);
 
     return () => {
       if (hasIdle && typeof win.cancelIdleCallback === "function") {

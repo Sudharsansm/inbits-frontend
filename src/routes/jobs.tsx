@@ -59,7 +59,9 @@ function Jobs() {
 
         <div className="mt-6 flex items-baseline justify-between">
           <h3 className="serif text-lg font-bold">
-            {isFiltering ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}` : "Open right now"}
+            {isFiltering
+              ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}`
+              : "Open right now"}
           </h3>
           {list.length > 0 && (
             <Link to="/menu/saved" className="text-xs font-semibold text-primary">

@@ -4,6 +4,7 @@ import { Radio } from "lucide-react";
 import { fetchJobs, type RemoteJob } from "@/lib/api";
 import type { Channel, ShowcasePanel } from "@/lib/content";
 import { useArticleViewer } from "@/lib/articleViewer";
+import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 
 /** Desktop-only right column: channels to tune into + trending news,
  * Instagram-style — fed by the same live groupings Home computes for its
@@ -137,18 +138,17 @@ export function SuggestionsSidebar({
             {jobs.map((j) => (
               <li key={j.id}>
                 <Link to="/job/$id" params={{ id: j.id }} className="flex items-center gap-3 group">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-secondary text-xs font-bold text-secondary-foreground">
-                    {j.logoUrl ? (
-                      <img
-                        src={j.logoUrl}
-                        alt=""
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      j.logo
-                    )}
-                  </div>
+                  {/* FIX: was a plain <img> with no onError fallback, so a
+                   * 404'd/blocked logoUrl (common — see CompanyLogo.tsx's
+                   * own doc comment) rendered as a broken-image icon
+                   * instead of falling back to initials. CompanyLogo
+                   * already solves this in JobsRail; reuse it here too. */}
+                  <CompanyLogo
+                    logoUrl={j.logoUrl}
+                    initials={j.logo}
+                    size="h-10 w-10"
+                    textSize="text-xs"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-semibold text-ink group-hover:underline">
                       {j.title}

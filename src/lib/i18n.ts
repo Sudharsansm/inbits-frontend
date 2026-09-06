@@ -6,8 +6,8 @@ import { usePref } from "@/hooks/usePrefs";
  * that's the only place this preference is set. */
 export const LANGUAGE_CODES: Record<string, string> = {
   English: "en",
-  "हिंदी": "hi",
-  "தமிழ்": "ta",
+  हिंदी: "hi",
+  தமிழ்: "ta",
   Español: "es",
 };
 

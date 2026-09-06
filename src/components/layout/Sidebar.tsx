@@ -6,7 +6,9 @@ export function Sidebar({ isActive }: { isActive: (to: string) => boolean }) {
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-border bg-paper px-2 py-4 text-ink md:flex xl:w-[245px] xl:px-3">
       <Link to="/" className="mb-6 flex items-baseline justify-center gap-1 px-2 xl:justify-start">
         <span className="serif text-2xl font-black tracking-tight">In</span>
-        <span className="serif text-2xl font-black tracking-tight text-primary xl:inline">Bits</span>
+        <span className="serif text-2xl font-black tracking-tight text-primary xl:inline">
+          Bits
+        </span>
       </Link>
       <nav className="flex flex-1 flex-col gap-1">
         {sideNav.map(({ to, label, icon: Icon }) => {

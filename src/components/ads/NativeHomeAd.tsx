@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Megaphone, MoreHorizontal } from "lucide-react";
-import { ADSENSE_CLIENT } from "@/components/ads/AdSlot";
+import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
 import { useAdFillStatus } from "@/hooks/useAdFillStatus";
 
 /**
@@ -25,13 +25,21 @@ export function NativeHomeAd({ slot }: { slot: string }) {
 
   useEffect(() => {
     if (pushed.current || !insRef.current) return;
+    // FIX: skip the request entirely for a placeholder slot ID or on a
+    // host AdSense won't serve on (e.g. localhost) — see AdSlot.tsx for
+    // why this was causing 400s from googleads.g.doubleclick.net.
+    if (!isAdSenseConfigured(slot)) return;
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
       pushed.current = true;
     } catch (error) {
       console.error("AdSense push failed", error);
     }
-  }, []);
+  }, [slot]);
+
+  // Not a real, configured ad placement — render nothing instead of
+  // reserving space for a request we know we didn't make.
+  if (!isAdSenseConfigured(slot)) return null;
 
   // No fill — don't leave a "Sponsored" post-shaped card with a blank
   // gray box inside it sitting in the feed. Drop it so real posts fill

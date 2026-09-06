@@ -17,7 +17,9 @@ export function MobileBottomNav({ isActive }: { isActive: (to: string) => boolea
               >
                 <Icon className={`h-5 w-5 ${active ? "stroke-[2.4]" : ""}`} />
                 <span>{label}</span>
-                <span className={`h-0.5 w-6 rounded-full ${active ? "bg-primary" : "bg-transparent"}`} />
+                <span
+                  className={`h-0.5 w-6 rounded-full ${active ? "bg-primary" : "bg-transparent"}`}
+                />
               </Link>
             </li>
           );

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { fetchFeed, fetchJobs, type FeedItem, type RemoteJob } from "@/lib/api";
-import { formatRelativeTime } from "@/lib/format";
+import { RelativeTime } from "@/components/common/RelativeTime";
 import { Briefcase, Newspaper } from "lucide-react";
 
 export const Route = createFileRoute("/notifications")({
@@ -107,7 +107,7 @@ function NotificationsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm leading-snug">{n.text}</p>
                     <span className="text-[11px] text-muted-foreground">
-                      {formatRelativeTime(n.time)}
+                      <RelativeTime iso={n.time} />
                     </span>
                   </div>
                 </Link>

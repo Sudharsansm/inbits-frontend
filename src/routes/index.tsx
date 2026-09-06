@@ -7,11 +7,13 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from "react";
-import { ArrowUp, Loader2, WifiOff } from "lucide-react";
+import { Loader2, WifiOff } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useLiveFeed } from "@/hooks/useLiveFeed";
 import { consumeFeedReturnIntent } from "@/lib/feedReturnIntent";
+import { getLastPostId, setLastPostId } from "@/lib/homeReturnPosition";
 import { loadFeedForRoute } from "@/lib/feedLoader";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useInterestProfile } from "@/lib/interests";
@@ -38,7 +40,44 @@ import { NativeHomeAd } from "@/components/ads/NativeHomeAd";
 // leaving to read an article and hitting Back always dropped you back at
 // the top of the feed instead of the post you were on. Module scope so it
 // survives Home unmounting while you're on /post/:id.
-let savedWindowScrollY = 0;
+//
+// FIX: this used to be a plain module-level `let`, which only survives a
+// same-JS-context SPA navigation. This route holds an open feed
+// WebSocket (see useLiveFeed), and pages with an open socket are
+// excluded from the browser's back-forward cache in every major browser
+// -- so a real Back navigation is very often a genuine full page reload,
+// which wipes a plain variable before Home ever gets to read it again.
+// That's exactly the scenario the *id-based* restore below was already
+// hardened against (see homeReturnPosition.ts / feedReturnIntent.ts,
+// both sessionStorage-backed) -- but this pixel fallback, which is what
+// actually runs when the id-based restore can't find its target, was
+// not, so the one path meant to catch that failure was itself wiped by
+// the same reload. Backing it with sessionStorage closes that gap, the
+// same way the other two stores already do.
+const SCROLL_STORAGE_KEY = "inbits:homeScrollY";
+
+function readSavedWindowScrollY(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = window.sessionStorage.getItem(SCROLL_STORAGE_KEY);
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeSavedWindowScrollY(value: number): void {
+  savedWindowScrollY = value;
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(SCROLL_STORAGE_KEY, String(value));
+  } catch {
+    // ignore (private browsing / storage disabled)
+  }
+}
+
+let savedWindowScrollY = readSavedWindowScrollY();
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -77,35 +116,67 @@ export const Route = createFileRoute("/")({
 function Home() {
   const initialItems = Route.useLoaderData();
 
-  // useLiveFeed no longer keeps a stored feed to resume from — every
-  // mount starts from the loader's fresh data and fetches live. This
-  // only decides whether Home also resets the reader's remembered
-  // scroll position on this mount (see the layout effects below): if we
-  // didn't just arrive here from reading an article (see
-  // lib/feedReturnIntent.ts), start scrolled to the top instead of
-  // wherever it was left off — the same way reopening Instagram's Home
-  // tab after visiting another tab shows fresh content from the top.
+  // Decides whether Home resets the reader's remembered scroll position
+  // on this mount (see the layout effects below). Two sources, checked
+  // in order:
+  //
+  //  1. `feedReturnIntent` -- set the instant the reader taps into an
+  //     article (see lib/articleViewer.tsx) -- gives the exact post they
+  //     were reading.
+  //  2. `homeReturnPosition` -- continuously updated as the reader
+  //     scrolls (see the "currently reading" IntersectionObserver
+  //     below) -- gives the last post they were on, regardless of *why*
+  //     they left: Jobs, Updates, Search, Menu, backgrounding the tab,
+  //     all of it.
+  //
+  // Like Updates (a reels feed), Home should behave like a normal social
+  // feed tab: switching away to any other page and back should drop the
+  // reader back on the same post, not reset to the top -- only a
+  // genuinely fresh session, with nothing recorded by either source yet,
+  // starts at the top.
   const [{ resetOnMount, returnToPostId }] = useState(() => {
     const { intent, postId } = consumeFeedReturnIntent();
-    return { resetOnMount: intent === "reset", returnToPostId: postId };
+    if (intent === "preserve") return { resetOnMount: false, returnToPostId: postId };
+    const lastPostId = getLastPostId();
+    return { resetOnMount: !lastPostId, returnToPostId: lastPostId };
   });
 
-  const { items, hasMore, connected, showEmptyState, loadMore, refresh, pendingCount, revealPending } =
-    useLiveFeed({
-      category: "All",
-      pageSize: 10,
-      initialItems,
-    });
+  const { items, hasMore, connected, showEmptyState, loadMore, refresh } = useLiveFeed({
+    category: "All",
+    pageSize: 10,
+    initialItems,
+    // Same reasoning as Updates: on a genuinely fresh mount there's no
+    // remembered position to protect, so let the socket's first
+    // "initial" message reveal anything scraped between the SSR fetch
+    // and the socket connecting the same way a real refresh would,
+    // instead of merging it in invisibly above content there's nothing
+    // to preserve for.
+    treatInitialMergeAsFresh: resetOnMount,
+  });
   const sentinel = useRef<HTMLDivElement>(null);
+  const feedSectionRef = useRef<HTMLDivElement>(null);
 
   const restoredRef = useRef(false);
+  // FIX: the restore effect below (which finds returnToPostId's element
+  // and scrolls it into view) used to have no fallback -- if that exact
+  // post was ever genuinely unfindable (aged out of the live buffer,
+  // filtered out because its image broke, excluded elsewhere, etc.) it
+  // just kept re-running on every feedPool change forever, never setting
+  // restoredRef, and the page silently sat at scroll 0. That's
+  // indistinguishable from "switching tabs and back resets Home to the
+  // top" even with the id genuinely remembered correctly. This counter
+  // caps how many times the effect is allowed to come up empty before it
+  // gives up and falls back to the last known pixel offset (or just
+  // accepts the top, if there isn't one) instead of retrying forever.
+  const restoreMisses = useRef(0);
+  const MAX_RESTORE_ATTEMPTS = 8;
 
   // Reset case: nothing to restore, go straight to the top and don't let
   // the retrying restore effect below do anything.
   useLayoutEffect(() => {
     if (!resetOnMount) return;
     window.scrollTo({ top: 0 });
-    savedWindowScrollY = 0;
+    writeSavedWindowScrollY(0);
     restoredRef.current = true;
   }, [resetOnMount]);
 
@@ -115,11 +186,11 @@ function Home() {
   // id-based restore).
   useEffect(() => {
     const onScroll = () => {
-      savedWindowScrollY = window.scrollY;
+      writeSavedWindowScrollY(window.scrollY);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      savedWindowScrollY = window.scrollY;
+      writeSavedWindowScrollY(window.scrollY);
       window.removeEventListener("scroll", onScroll);
     };
   }, []);
@@ -164,12 +235,48 @@ function Home() {
   // gives up (via restoredRef) the moment it succeeds -- both so it
   // stops looking once there's nothing left to find, and so it never
   // overrides the reader's own scrolling once they've started.
+  // FIX: once restored (by either path below), briefly re-apply the same
+  // scroll target a few more times. An ad slot mounting, or an image
+  // finishing loading just below the fold, can shift page layout a beat
+  // *after* the initial synchronous restore and visibly nudge the reader
+  // before they've had any chance to scroll themselves -- which reads as
+  // exactly the "jump to top" this whole mechanism exists to prevent.
+  // Self-limiting: stops the instant the reader actually scrolls or
+  // touches the screen, and stops for good after ~1s once layout has had
+  // time to settle.
+  const reassertRestore = useCallback(() => {
+    let cancelled = false;
+    let userMoved = false;
+    const onUserMove = () => {
+      userMoved = true;
+    };
+    window.addEventListener("wheel", onUserMove, { passive: true, once: true });
+    window.addEventListener("touchmove", onUserMove, { passive: true, once: true });
+    const reapply = () => {
+      if (cancelled || userMoved) return;
+      if (returnToPostId) {
+        const el = document.querySelector(`[data-post-id="${CSS.escape(returnToPostId)}"]`);
+        el?.scrollIntoView({ block: "start" });
+      } else if (savedWindowScrollY > 0) {
+        window.scrollTo({ top: savedWindowScrollY });
+      }
+    };
+    const timers = [120, 400, 1000].map((ms) => setTimeout(reapply, ms));
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      window.removeEventListener("wheel", onUserMove);
+      window.removeEventListener("touchmove", onUserMove);
+    };
+  }, [returnToPostId]);
+
   useLayoutEffect(() => {
     if (restoredRef.current) return;
     if (!returnToPostId) {
       if (savedWindowScrollY > 0 && feedPool.length > 0) {
         window.scrollTo({ top: savedWindowScrollY });
         restoredRef.current = true;
+        reassertRestore();
       }
       return;
     }
@@ -177,8 +284,67 @@ function Home() {
     if (target) {
       target.scrollIntoView({ block: "start" });
       restoredRef.current = true;
+      reassertRestore();
+      return;
     }
-  }, [feedPool, returnToPostId]);
+    // Not found this pass. If there's genuinely nothing more that could
+    // ever bring it in (the feed has stopped growing) or we've already
+    // given this enough tries across feedPool updates, stop waiting on
+    // it and fall back to the last remembered pixel offset instead of
+    // leaving the reader stuck at the top with no restore ever applied.
+    restoreMisses.current += 1;
+    const giveUp = !hasMore || restoreMisses.current >= MAX_RESTORE_ATTEMPTS;
+    if (giveUp) {
+      if (savedWindowScrollY > 0) {
+        window.scrollTo({ top: savedWindowScrollY });
+      }
+      restoredRef.current = true;
+      reassertRestore();
+      return;
+    }
+    // FIX: this used to just return here and wait for `feedPool` to
+    // change on its own -- which only happened once the infinite-scroll
+    // sentinel scrolled into view. But the sentinel can never come into
+    // view while we're deliberately still sitting at scroll 0 trying to
+    // restore -- nothing was driving `loadMore`, so a remembered post
+    // that wasn't in the first loaded batch (e.g. after a full reload
+    // wiped the in-session feed cache -- see useLiveFeed's `feedCache`)
+    // was never found, and the reader was silently stuck at the top
+    // forever. Indistinguishable from "Home always resets to the top".
+    // Ask for the next page ourselves instead of waiting on scroll
+    // position to request it.
+    loadMore();
+  }, [feedPool, returnToPostId, hasMore, loadMore, reassertRestore]);
+
+  // Which post is actually "the one being read" right now -- the one
+  // that's crossed the middle of the viewport -- continuously, as the
+  // reader scrolls. This is the source of truth for homeReturnPosition
+  // (see the resetOnMount/returnToPostId state above): every time it
+  // changes, remember it as where to resume next time Home mounts, from
+  // anywhere (Jobs, Updates, Search, Menu, backgrounding the tab, all of
+  // it) -- the same way Updates tracks its current reel.
+  useEffect(() => {
+    const root = feedSectionRef.current;
+    if (!root) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.find((e) => e.isIntersecting);
+        if (visible) {
+          setLastPostId(visible.target.getAttribute("data-post-id"));
+        }
+      },
+      // A band through the middle of the viewport, rather than "any
+      // overlap": Home's cards are taller than the screen, so plain
+      // intersection would often flag two adjacent cards as both
+      // "visible" at once. Narrowing to a horizontal strip around the
+      // center means only whichever post is actually centered in view
+      // counts as "currently reading".
+      { rootMargin: "-45% 0px -45% 0px", threshold: 0 },
+    );
+    const cards = root.querySelectorAll("[data-post-id]");
+    cards.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [feedPool]);
 
   // Articles already sitting in the main feed's visible window — used to
   // keep every in-feed suggestion rail from just echoing headlines the
@@ -233,10 +399,12 @@ function Home() {
     return () => io.disconnect();
   }, [loadMore]);
 
-  // Swipe-down-to-refresh, exactly like Instagram/Twitter: new stories
-  // scraped while you're browsing wait quietly until you pull down at
-  // the top, then they're appended after what you've already got —
-  // continuing the feed rather than jumping the queue.
+  // Swipe-down-to-refresh: new stories scraped while you're browsing
+  // wait quietly until you pull down at the top, then they're spliced in
+  // at the front and the feed scrolls to show them (see useLiveFeed's
+  // `refresh`) — this is one of the only two moments fresh content is
+  // allowed to appear (the other being reopening the app after it's
+  // been away for a while).
   const { pullDistance, refreshing, triggerDistance } = usePullToRefresh({ onRefresh: refresh });
 
   // Only surface the "reconnecting" notice for a *real* drop — a brief
@@ -263,25 +431,13 @@ function Home() {
         />
       </div>
 
-      {/* Instagram-style "N new posts" pill: freshly-scraped articles wait
-          here — not silently spliced into the feed — until the reader
-          taps it, so what they're currently looking at (their "first
-          post") never gets reshuffled out from under them mid-read. */}
-      {pendingCount > 0 && (
-        <div className="sticky top-2 z-20 flex justify-center">
-          <button
-            type="button"
-            onClick={revealPending}
-            className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground shadow-md transition-transform active:scale-95"
-          >
-            <ArrowUp className="h-3.5 w-3.5" />
-            {pendingCount === 1 ? "1 new story" : `${pendingCount} new stories`}
-          </button>
-        </div>
-      )}
-
-      {/* Instagram-style vertical post feed, backed live by the crawler. */}
-      <section className="flex flex-col">
+      {/* Vertical post feed, backed by the crawler. Freshly-scraped
+          articles do NOT appear while you're actively browsing — the
+          feed only tops itself up (see useLiveFeed) on an explicit
+          pull-to-refresh, or automatically the moment you reopen the
+          app after it's actually been closed/backgrounded for a
+          while — so scrolling never gets interrupted mid-read. */}
+      <section ref={feedSectionRef} className="flex flex-col">
         {/* FIX: home used to show a skeleton placeholder for as long as
             feedPool was empty. Removed so the page never shows a loading
             state — it renders nothing until real posts are ready (which,
@@ -301,11 +457,28 @@ function Home() {
                   open -- that's the one whose image should load eagerly
                   (see ImageCarousel's `priority` prop). Every other card
                   keeps the existing lazy behavior. */}
-              <PostCard
-                post={item}
-                priority={index === 0}
-                onImageUnavailable={() => markImageBroken(item.id)}
-              />
+              {/* Instagram/Reels-style "line by line" reveal: each card
+                  fades/slides in with a small stagger instead of the
+                  whole feed popping in at once (see .post-card-enter in
+                  styles.css). Capped to the first handful of cards --
+                  beyond that a reader is already scrolling through
+                  content that loaded moments ago, so a growing delay
+                  would just make later posts feel slow to appear. This
+                  only plays once per post: the wrapper's key is the
+                  post id, so it doesn't replay on re-renders (likes,
+                  saves, etc.) — only the first time this post mounts,
+                  whether that's on initial load or a fresh post landing
+                  at the top of the feed live. */}
+              <div
+                className="post-card-enter"
+                style={{ "--post-card-delay": `${Math.min(index, 10) * 45}ms` } as CSSProperties}
+              >
+                <PostCard
+                  post={item}
+                  priority={index === 0}
+                  onImageUnavailable={() => markImageBroken(item.id)}
+                />
+              </div>
               {slot === 1 && <StandsRail showcase={showcase} />}
               {slot === 3 && <JournalRail journal={journal} />}
               {/* One AdSense unit per 8-post cycle — same cadence as the

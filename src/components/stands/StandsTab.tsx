@@ -82,8 +82,11 @@ export function StandsTab({
             </ul>
 
             <div className="flex items-center justify-between px-4 pb-3 pt-1">
-              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                Showcase · {panel.updated}
+              <span
+                suppressHydrationWarning
+                className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground"
+              >
+                {`Showcase · ${panel.updated}`}
               </span>
               <button
                 aria-label="More options"

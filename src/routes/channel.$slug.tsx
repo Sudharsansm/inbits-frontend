@@ -132,8 +132,11 @@ function ChannelPage() {
                   <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                     {s.summary}
                   </p>
-                  <div className="mt-1.5 text-[11px] text-muted-foreground">
-                    {s.publishedAt} · {s.readTime} min read
+                  <div
+                    suppressHydrationWarning
+                    className="mt-1.5 text-[11px] text-muted-foreground"
+                  >
+                    {`${s.publishedAt} · ${s.readTime} min read`}
                   </div>
                 </div>
                 <img

@@ -1,4 +1,10 @@
-export type Track = { id: string; title: string; artist: string; src: string; categories: string[] };
+export type Track = {
+  id: string;
+  title: string;
+  artist: string;
+  src: string;
+  categories: string[];
+};
 
 /** How long a post's background track loops for before jumping back to
  * the start — the same short-clip loop Instagram/Reels uses (rather than
@@ -15,14 +21,43 @@ export const SHORT_LOOP_SECONDS = 60;
  * Sound, Artlist, etc.) organize by, so "what kind of music is this" is
  * a real, recognizable answer rather than an invented label. */
 export const MUSIC_CATEGORIES = [
-  "News Theme", "Breaking News", "Documentary", "Cinematic Score", "Epic",
-  "Dramatic", "Suspense", "Mystery", "Inspirational", "Motivational",
-  "Emotional", "Uplifting", "Corporate", "Technology", "Futuristic",
-  "Adventure", "Horror", "Comedy", "Romantic", "Chill", "Relaxing",
-  "Meditation", "Study Music", "Focus Music", "Workout Music", "Gaming Music",
-  "Travel Music", "Podcast Music", "Vlog Music", "Intro Music", "Outro Music",
-  "Background Music", "Trending Beat", "Viral Beat", "Acoustic Background",
-  "Ambient Background", "Instrumental Background",
+  "News Theme",
+  "Breaking News",
+  "Documentary",
+  "Cinematic Score",
+  "Epic",
+  "Dramatic",
+  "Suspense",
+  "Mystery",
+  "Inspirational",
+  "Motivational",
+  "Emotional",
+  "Uplifting",
+  "Corporate",
+  "Technology",
+  "Futuristic",
+  "Adventure",
+  "Horror",
+  "Comedy",
+  "Romantic",
+  "Chill",
+  "Relaxing",
+  "Meditation",
+  "Study Music",
+  "Focus Music",
+  "Workout Music",
+  "Gaming Music",
+  "Travel Music",
+  "Podcast Music",
+  "Vlog Music",
+  "Intro Music",
+  "Outro Music",
+  "Background Music",
+  "Trending Beat",
+  "Viral Beat",
+  "Acoustic Background",
+  "Ambient Background",
+  "Instrumental Background",
 ] as const;
 
 export type MusicCategory = (typeof MUSIC_CATEGORIES)[number];
@@ -47,8 +82,15 @@ export const MUSIC_LIBRARY: Track[] = [
     artist: "Kevin MacLeod",
     src: "https://commons.wikimedia.org/wiki/Special:FilePath/Kevin_MacLeod_-_Early_Riser.ogg",
     categories: [
-      "News Theme", "Breaking News", "Corporate", "Technology", "Focus Music",
-      "Podcast Music", "Vlog Music", "Background Music", "Trending Beat",
+      "News Theme",
+      "Breaking News",
+      "Corporate",
+      "Technology",
+      "Focus Music",
+      "Podcast Music",
+      "Vlog Music",
+      "Background Music",
+      "Trending Beat",
       "Intro Music",
     ],
   },
@@ -58,8 +100,15 @@ export const MUSIC_LIBRARY: Track[] = [
     artist: "Kevin MacLeod",
     src: "https://commons.wikimedia.org/wiki/Special:FilePath/Kevin_MacLeod_-_Enchanted_Journey.ogg",
     categories: [
-      "Documentary", "Adventure", "Travel Music", "Inspirational", "Uplifting",
-      "Relaxing", "Chill", "Ambient Background", "Instrumental Background",
+      "Documentary",
+      "Adventure",
+      "Travel Music",
+      "Inspirational",
+      "Uplifting",
+      "Relaxing",
+      "Chill",
+      "Ambient Background",
+      "Instrumental Background",
       "Meditation",
     ],
   },
@@ -69,8 +118,16 @@ export const MUSIC_LIBRARY: Track[] = [
     artist: "Kevin MacLeod",
     src: "https://commons.wikimedia.org/wiki/Special:FilePath/Kevin_MacLeod_-_01_-_Impact_Prelude.ogg",
     categories: [
-      "Cinematic Score", "Epic", "Dramatic", "Suspense", "Mystery", "Horror",
-      "Gaming Music", "Workout Music", "Viral Beat", "Outro Music",
+      "Cinematic Score",
+      "Epic",
+      "Dramatic",
+      "Suspense",
+      "Mystery",
+      "Horror",
+      "Gaming Music",
+      "Workout Music",
+      "Viral Beat",
+      "Outro Music",
     ],
   },
   {
@@ -79,8 +136,13 @@ export const MUSIC_LIBRARY: Track[] = [
     artist: "Kevin MacLeod",
     src: "https://commons.wikimedia.org/wiki/Special:FilePath/Kevin_MacLeod_-_Master_of_the_Feast.ogg",
     categories: [
-      "Motivational", "Comedy", "Romantic", "Futuristic", "Study Music",
-      "Corporate", "Trending Beat",
+      "Motivational",
+      "Comedy",
+      "Romantic",
+      "Futuristic",
+      "Study Music",
+      "Corporate",
+      "Trending Beat",
     ],
   },
   {
@@ -89,8 +151,14 @@ export const MUSIC_LIBRARY: Track[] = [
     artist: "Kevin MacLeod",
     src: "https://commons.wikimedia.org/wiki/Special:FilePath/MacLeod,_Kevin_-_Waterford.ogg",
     categories: [
-      "Emotional", "Inspirational", "Relaxing", "Meditation", "Chill",
-      "Acoustic Background", "Ambient Background", "Instrumental Background",
+      "Emotional",
+      "Inspirational",
+      "Relaxing",
+      "Meditation",
+      "Chill",
+      "Acoustic Background",
+      "Ambient Background",
+      "Instrumental Background",
       "Focus Music",
     ],
   },
@@ -100,7 +168,12 @@ export const MUSIC_LIBRARY: Track[] = [
  * topic — e.g. a Business story gets "Corporate", Sports gets "Epic". A
  * story tagged "Breaking" anywhere gets "Breaking News" regardless of
  * subject, since urgency trumps topic for what music fits it. */
-export function categoryForItem(item: { category?: string; topic?: string; title?: string; tags?: string[] }): MusicCategory {
+export function categoryForItem(item: {
+  category?: string;
+  topic?: string;
+  title?: string;
+  tags?: string[];
+}): MusicCategory {
   const haystack = `${item.title ?? ""} ${(item.tags ?? []).join(" ")}`.toLowerCase();
   if (haystack.includes("breaking")) return "Breaking News";
 
@@ -160,7 +233,13 @@ function nextInCategory(category: string): Track {
 /** One-stop lookup for "what track (and mood label) should this post's
  * background music be" — used by both the Home feed post and the
  * Updates/Reels post so they agree on the same track per item. */
-export function trackForItem(item: { id: string; category?: string; topic?: string; title?: string; tags?: string[] }): {
+export function trackForItem(item: {
+  id: string;
+  category?: string;
+  topic?: string;
+  title?: string;
+  tags?: string[];
+}): {
   track: Track;
   category: MusicCategory;
 } {

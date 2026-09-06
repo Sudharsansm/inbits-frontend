@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { Bookmark } from "lucide-react";
 import type { RemoteJob } from "@/lib/api";
-import { formatRelativeTime } from "@/lib/format";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { RelativeTime } from "@/components/common/RelativeTime";
 
 export function JobCard({
   job,
@@ -38,7 +38,7 @@ export function JobCard({
             </span>
             <span className="text-[10px] font-semibold text-primary">{job.salary}</span>
             <span className="text-[10px] text-muted-foreground">
-              {formatRelativeTime(job.posted)} · via {job.source}
+              <RelativeTime iso={job.posted} /> · via {job.source}
             </span>
           </div>
         </div>

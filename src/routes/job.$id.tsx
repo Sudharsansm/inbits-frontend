@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, MapPin, Briefcase, DollarSign, Bookmark } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { fetchJob } from "@/lib/api";
-import { formatRelativeTime } from "@/lib/format";
+import { RelativeTime } from "@/components/common/RelativeTime";
 import { useToggleSet } from "@/hooks/usePrefs";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 
@@ -57,11 +57,16 @@ function JobPage() {
         </Link>
 
         <div className="mt-4 flex items-center gap-3">
-          <CompanyLogo logoUrl={job.logoUrl} initials={job.logo} size="h-14 w-14" textSize="text-sm" />
+          <CompanyLogo
+            logoUrl={job.logoUrl}
+            initials={job.logo}
+            size="h-14 w-14"
+            textSize="text-sm"
+          />
           <div className="min-w-0">
             <h1 className="serif text-xl font-black leading-tight">{job.title}</h1>
             <p className="text-sm text-muted-foreground">
-              {job.company} · {formatRelativeTime(job.posted)}
+              {job.company} · <RelativeTime iso={job.posted} />
             </p>
           </div>
         </div>

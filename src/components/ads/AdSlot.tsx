@@ -29,6 +29,41 @@ declare global {
   }
 }
 
+/**
+ * FIX: every ad slot in this app was requesting real inventory from
+ * Google's ad server using placeholder unit IDs ("0000000000" etc.) that
+ * were never created in an AdSense dashboard, and doing it from
+ * localhost, which AdSense never serves real ads on regardless of slot
+ * validity (the domain has to be added and verified under Ads > Sites
+ * first). Google's ad server correctly rejects both cases with a 400 —
+ * that's not a bug on our end, it's "this isn't a real, approved ad
+ * placement yet". Every ad component below now checks this before
+ * pushing a request, so local development and any not-yet-configured
+ * slot fail silently (component renders nothing) instead of spamming
+ * the console with rejected network requests.
+ *
+ * Swap the two conditions below for your real setup once you have one:
+ *  - `isPlaceholderSlot`: true for slot IDs still using this repo's demo
+ *    values. Once you replace a `slot="..."` prop with a real ad unit ID
+ *    from your AdSense dashboard, this returns false for it automatically.
+ *  - `isLikelyUnservableHost`: true on localhost/127.0.0.1/private IPs.
+ *    Remove this check (or add your staging domain to the allowlist)
+ *    once the domain serving this app is verified in AdSense.
+ */
+function isPlaceholderSlot(slot: string): boolean {
+  return /^0+$/.test(slot.trim());
+}
+
+function isLikelyUnservableHost(): boolean {
+  if (typeof window === "undefined") return true;
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "" || host.endsWith(".local");
+}
+
+export function isAdSenseConfigured(slot: string): boolean {
+  return !isPlaceholderSlot(slot) && !isLikelyUnservableHost();
+}
+
 function AdSlotInner({
   slot,
   className = "",
@@ -53,6 +88,7 @@ function AdSlotInner({
     // Fragment it lives in — pushing the same <ins> twice throws.
     if (pushed.current) return;
     if (!insRef.current) return;
+    if (!isAdSenseConfigured(slot)) return;
 
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
@@ -60,7 +96,12 @@ function AdSlotInner({
     } catch (error) {
       console.error("AdSense push failed", error);
     }
-  }, []);
+  }, [slot]);
+
+  // Same "not a real ad placement yet" skip as the push above — render
+  // nothing rather than reserving space for a request we know we didn't
+  // make.
+  if (!isAdSenseConfigured(slot)) return null;
 
   // No ad came back (or the request never resolved) — don't leave the
   // card's border/label/padding sitting there empty, drop the slot

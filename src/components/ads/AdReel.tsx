@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ADSENSE_CLIENT } from "@/components/ads/AdSlot";
+import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
 import { useAdFillStatus, type AdFillStatus } from "@/hooks/useAdFillStatus";
 
 /**
@@ -31,17 +31,31 @@ export function AdReel({
 
   useEffect(() => {
     if (pushed.current || !insRef.current) return;
+    // FIX: skip the request entirely for a placeholder slot ID or on a
+    // host AdSense won't serve on (e.g. localhost) — see AdSlot.tsx for
+    // why this was causing 400s from googleads.g.doubleclick.net.
+    if (!isAdSenseConfigured(slot)) return;
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
       pushed.current = true;
     } catch (error) {
       console.error("AdSense push failed", error);
     }
-  }, []);
+  }, [slot]);
 
   useEffect(() => {
     onStatusChange?.(status);
   }, [status, onStatusChange]);
+
+  // Not a real, configured ad placement — render nothing instead of
+  // holding an empty full-height snap slot for a request we know we
+  // didn't make. Also notify the parent so LazyAdReel collapses its
+  // wrapper, same as a genuine "unfilled" response below.
+  useEffect(() => {
+    if (!isAdSenseConfigured(slot)) onStatusChange?.("unfilled");
+  }, [slot, onStatusChange]);
+
+  if (!isAdSenseConfigured(slot)) return null;
 
   // No fill — don't hold a blank "Sponsored" reel in the snap-scroll
   // list. The parent LazyAdReel also collapses its wrapper via

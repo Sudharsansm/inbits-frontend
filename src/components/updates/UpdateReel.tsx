@@ -1,8 +1,8 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { ArrowRight, Bookmark, Heart, Music2, Share2, Volume2, VolumeX } from "lucide-react";
 import type { FeedItem } from "@/lib/api";
-import { formatRelativeTime } from "@/lib/format";
 import { sourceOriginLabel } from "@/lib/sourceOrigin";
+import { RelativeTime } from "@/components/common/RelativeTime";
 import { trackForItem } from "@/lib/music";
 import { useTranslated } from "@/lib/i18n";
 import { useArticleViewer } from "@/lib/articleViewer";
@@ -97,9 +97,7 @@ function UpdateReelInner({
           // post detail page always shows) was never even tried. The
           // cover is now always the first candidate; extras are
           // additional slides, not a replacement.
-          images={
-            p.image ? [p.image, ...p.images.filter((img) => img !== p.image)] : p.images
-          }
+          images={p.image ? [p.image, ...p.images.filter((img) => img !== p.image)] : p.images}
           alt={p.title}
           className="h-full w-full"
           imgClassName="h-full object-cover"
@@ -155,7 +153,7 @@ function UpdateReelInner({
               {p.category}
             </span>
             <span className="text-white/80">
-              {p.source} · {formatRelativeTime(p.publishedAt)}
+              {p.source} · <RelativeTime iso={p.publishedAt} />
               {sourceOriginLabel(p.location, p.language) && (
                 <> · {sourceOriginLabel(p.location, p.language)}</>
               )}

@@ -67,8 +67,11 @@ export function JournalTab({
                   <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                     {a.summary}
                   </p>
-                  <div className="mt-1.5 text-[11px] text-muted-foreground">
-                    {a.publishedAt} · {a.readTime} min read
+                  <div
+                    suppressHydrationWarning
+                    className="mt-1.5 text-[11px] text-muted-foreground"
+                  >
+                    {`${a.publishedAt} · ${a.readTime} min read`}
                   </div>
                 </div>
                 <img

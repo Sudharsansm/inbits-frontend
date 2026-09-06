@@ -149,7 +149,9 @@ export async function searchArticles(
 
 /** Real, currently-open remote job listings — see app/jobs.py. Cached
  * server-side, so this is cheap to call from every page that shows jobs. */
-export async function fetchJobs(signal?: AbortSignal): Promise<{ items: RemoteJob[]; total: number }> {
+export async function fetchJobs(
+  signal?: AbortSignal,
+): Promise<{ items: RemoteJob[]; total: number }> {
   return getJson(`/api/jobs`, signal);
 }
 

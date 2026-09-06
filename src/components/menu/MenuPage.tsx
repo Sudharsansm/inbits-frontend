@@ -34,15 +34,7 @@ export function MenuPage({
   );
 }
 
-export function Row({
-  label,
-  hint,
-  right,
-}: {
-  label: string;
-  hint?: string;
-  right?: ReactNode;
-}) {
+export function Row({ label, hint, right }: { label: string; hint?: string; right?: ReactNode }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3">
       <div className="min-w-0 flex-1">

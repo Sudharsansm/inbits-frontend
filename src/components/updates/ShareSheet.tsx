@@ -56,14 +56,21 @@ export function ShareSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-[440px] rounded-t-3xl bg-paper p-5 text-ink shadow-2xl animate-in slide-in-from-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="serif text-lg font-bold">Share</h3>
-          <button onClick={onClose} className="rounded-full p-1 hover:bg-secondary" aria-label="Close">
+          <button
+            onClick={onClose}
+            className="rounded-full p-1 hover:bg-secondary"
+            aria-label="Close"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>

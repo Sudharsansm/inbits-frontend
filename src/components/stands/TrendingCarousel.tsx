@@ -117,4 +117,3 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
     </div>
   );
 }
-

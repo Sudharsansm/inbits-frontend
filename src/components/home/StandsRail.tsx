@@ -72,8 +72,19 @@ export function StandsRail({ showcase }: { showcase: ShowcasePanel[] }) {
               ))}
             </ul>
             <div className="flex items-center justify-between px-4 pb-3 pt-1">
-              <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                Showcase · {panel.updated}
+              {/* Single text run (no split children) with suppressHydrationWarning
+                  on this whole span — panel.updated is pre-formatted ("2h ago")
+                  from a live timestamp via formatRelativeTime() in liveGroups.ts,
+                  so it can drift between server render and client hydration the
+                  same way RelativeTime.tsx documents. Splitting the static prefix
+                  and the value into separate JSX children (e.g. `Showcase ·{" "}`)
+                  creates separate text nodes that can themselves mismatch between
+                  server and client — keep it as one interpolated string instead. */}
+              <span
+                suppressHydrationWarning
+                className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground"
+              >
+                {`Showcase · ${panel.updated}`}
               </span>
               <button
                 aria-label="More options"

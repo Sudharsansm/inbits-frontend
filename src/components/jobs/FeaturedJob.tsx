@@ -13,7 +13,12 @@ export function FeaturedJob({ job }: { job: RemoteJob }) {
         Featured
       </div>
       <div className="mt-2 flex items-center gap-3">
-        <CompanyLogo logoUrl={job.logoUrl} initials={job.logo} size="h-14 w-14" textSize="text-sm" />
+        <CompanyLogo
+          logoUrl={job.logoUrl}
+          initials={job.logo}
+          size="h-14 w-14"
+          textSize="text-sm"
+        />
         <div className="min-w-0">
           <h3 className="serif truncate text-lg font-bold leading-tight">{job.title}</h3>
           <p className="text-sm text-muted-foreground">

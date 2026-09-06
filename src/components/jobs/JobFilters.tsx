@@ -126,7 +126,10 @@ function FacetDropdown({
   );
 }
 
-function countBy<T extends string>(jobs: RemoteJob[], selector: (job: RemoteJob) => T | ""): Map<string, number> {
+function countBy<T extends string>(
+  jobs: RemoteJob[],
+  selector: (job: RemoteJob) => T | "",
+): Map<string, number> {
   const counts = new Map<string, number>();
   for (const job of jobs) {
     const v = selector(job);
@@ -168,7 +171,8 @@ export function JobFilters({
     // Keep a stable, chronological order (Today → Older) instead of
     // "most common first" — that reads more naturally for a time filter.
     const ordered = new Map<string, number>();
-    for (const bucket of POSTED_ORDER) if (counts.has(bucket)) ordered.set(bucket, counts.get(bucket)!);
+    for (const bucket of POSTED_ORDER)
+      if (counts.has(bucket)) ordered.set(bucket, counts.get(bucket)!);
     return ordered;
   }, [jobs]);
 
@@ -228,7 +232,9 @@ export function JobFilters({
           value={filters.postedWithin}
           counts={postedCounts}
           sortByCount={false}
-          onChange={(postedWithin) => onChange({ ...filters, postedWithin: postedWithin as PostedWithin | null })}
+          onChange={(postedWithin) =>
+            onChange({ ...filters, postedWithin: postedWithin as PostedWithin | null })
+          }
         />
         {activeCount > 0 && (
           <button

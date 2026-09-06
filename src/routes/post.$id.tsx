@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { fetchArticle, fetchFeed, type FeedItem } from "@/lib/api";
 import { articleCache, getArticle, setArticle, type ArticleData } from "@/lib/articleCache";
-import { formatRelativeTime } from "@/lib/format";
+import { RelativeTime } from "@/components/common/RelativeTime";
 import { sourceOriginLabel } from "@/lib/sourceOrigin";
 import { useSavedPosts } from "@/lib/savedPosts";
 import { useArticleViewer } from "@/lib/articleViewer";
@@ -179,8 +179,6 @@ function PostArticle({ post, related }: { post: FeedItem; related: FeedItem[] })
     return () => window.removeEventListener("scroll", onScroll);
   }, [post.id]);
 
-  const publishedLabel = formatRelativeTime(post.publishedAt);
-
   // Real article body from the backend's content fetcher, split into
   // paragraphs. Falls back to the RSS excerpt on the rare item where full
   // extraction failed (see app/content_fetcher.py) so the page never
@@ -218,10 +216,16 @@ function PostArticle({ post, related }: { post: FeedItem; related: FeedItem[] })
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
-    } else if (typeof navigator !== "undefined" && (navigator as any).share) {
+    } else if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
-        await (navigator as any).share({ title: post.title, text: post.excerpt, url: shareUrl });
-      } catch {}
+        await navigator.share({ title: post.title, text: post.excerpt, url: shareUrl });
+      } catch (err) {
+        // AbortError fires when the user simply dismisses the native share
+        // sheet -- not a real failure. Anything else is worth knowing about.
+        if (err instanceof Error && err.name !== "AbortError") {
+          console.error("Native share failed:", err);
+        }
+      }
     }
   };
 
@@ -247,7 +251,7 @@ function PostArticle({ post, related }: { post: FeedItem; related: FeedItem[] })
         <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-primary">
           <span>{post.category}</span>
           <span className="text-muted-foreground">
-            · {post.source} · {publishedLabel}
+            · {post.source} · <RelativeTime iso={post.publishedAt} />
             {sourceOriginLabel(post.location, post.language) && (
               <> · {sourceOriginLabel(post.location, post.language)}</>
             )}

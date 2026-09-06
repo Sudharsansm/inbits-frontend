@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Bookmark, Heart, MoreHorizontal, Share2, Volume2, VolumeX } from "lucide-react";
 
 import type { FeedItem } from "@/lib/api";
-import { formatRelativeTime } from "@/lib/format";
+import { RelativeTime } from "@/components/common/RelativeTime";
 import { useSavedPosts } from "@/lib/savedPosts";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { ImageCarousel } from "@/components/common/ImageCarousel";
@@ -33,8 +33,6 @@ function PostCardInner({
   onImageUnavailable?: () => void;
 }) {
   const { openArticle } = useArticleViewer();
-
-  const publishedLabel = formatRelativeTime(post.publishedAt);
 
   const { has, toggleSave } = useSavedPosts();
   const saved = has(post.id);
@@ -266,9 +264,9 @@ function PostCardInner({
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/post/${post.id}` : "";
 
   const share = async () => {
-    if (typeof navigator !== "undefined" && (navigator as any).share) {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
-        await (navigator as any).share({
+        await navigator.share({
           title: post.title,
           text: post.excerpt,
           url: shareUrl,
@@ -310,7 +308,7 @@ function PostCardInner({
           <div className="truncate text-[13px] font-semibold leading-tight">{post.source}</div>
 
           <div className="text-[10px] text-muted-foreground">
-            {post.category} · {publishedLabel}
+            {post.category} · <RelativeTime iso={post.publishedAt} />
             {sourceOriginLabel(post.location, post.language) && (
               <>
                 {" · "}
@@ -495,7 +493,7 @@ function PostCardInner({
               </span>
 
               <span className="text-white/85">
-                {post.source} · {publishedLabel}
+                {post.source} · <RelativeTime iso={post.publishedAt} />
               </span>
             </div>
 

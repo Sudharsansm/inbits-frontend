@@ -104,7 +104,6 @@ export function usePullToRefresh({
     // FIX: deliberately NOT depending on `pullDistance`/`refreshing` — see
     // the refs above. `onRefresh` itself can still legitimately change
     // (e.g. a new `category`), so it stays as the one real dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [disabled, onRefresh, scrollRef]);
 
   return { pullDistance, refreshing, triggerDistance: TRIGGER_DISTANCE };

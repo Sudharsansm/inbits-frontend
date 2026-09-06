@@ -4,7 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { searchArticles, type FeedItem } from "@/lib/api";
 import { useLiveFeed } from "@/hooks/useLiveFeed";
 import { excludeSeen, markSeen } from "@/lib/seenArticles";
-import { formatRelativeTime } from "@/lib/format";
+import { RelativeTime } from "@/components/common/RelativeTime";
 import { useTranslated } from "@/lib/i18n";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { DiscoverGridSkeleton } from "@/components/common/FeedSkeleton";
@@ -56,7 +56,11 @@ function SearchPage() {
   // that weren't already the top story on those pages a moment ago.
   const discover = useMemo(() => excludeSeen(liveItems, "search", 8), [liveItems]);
   useEffect(() => {
-    if (discover.length > 0) markSeen(discover.slice(0, 20).map((i) => i.id), "search");
+    if (discover.length > 0)
+      markSeen(
+        discover.slice(0, 20).map((i) => i.id),
+        "search",
+      );
   }, [discover]);
 
   const [q, setQ] = useState(searchCache.q);
@@ -213,7 +217,7 @@ function SearchResultRow({ item }: { item: FeedItem }) {
             {excerpt}
           </p>
           <div className="mt-1.5 text-[11px] text-muted-foreground">
-            {formatRelativeTime(item.publishedAt)} · {item.readTime} min read
+            <RelativeTime iso={item.publishedAt} /> · {item.readTime} min read
           </div>
         </div>
         <img

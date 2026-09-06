@@ -7,9 +7,15 @@ export const Route = createFileRoute("/menu/login")({
   head: () => ({
     meta: [
       { title: "Log in · InBits" },
-      { name: "description", content: "Sign in to sync your saved stories, sources and reading preferences on InBits." },
+      {
+        name: "description",
+        content: "Sign in to sync your saved stories, sources and reading preferences on InBits.",
+      },
       { property: "og:title", content: "Log in · InBits" },
-      { property: "og:description", content: "Sign in to sync your saved stories, sources and reading preferences on InBits." },
+      {
+        property: "og:description",
+        content: "Sign in to sync your saved stories, sources and reading preferences on InBits.",
+      },
     ],
   }),
   component: LoginPage,
@@ -24,7 +30,9 @@ function LoginPage() {
     return (
       <MenuPage title="Account" subtitle={signedIn}>
         <div className="rounded-2xl border border-border bg-card p-6 text-center">
-          <p className="text-sm">You're signed in as <span className="font-semibold">{signedIn}</span>.</p>
+          <p className="text-sm">
+            You're signed in as <span className="font-semibold">{signedIn}</span>.
+          </p>
           <button
             onClick={() => setSignedIn("")}
             className="mt-4 w-full rounded-2xl border border-border py-3 text-sm font-semibold text-primary"
@@ -40,7 +48,10 @@ function LoginPage() {
   }
 
   return (
-    <MenuPage title={mode === "login" ? "Log in" : "Create account"} subtitle="Sync saves across devices">
+    <MenuPage
+      title={mode === "login" ? "Log in" : "Create account"}
+      subtitle="Sync saves across devices"
+    >
       <div className="mb-3 flex rounded-full border border-border bg-card p-1 text-xs font-semibold">
         {(["login", "signup"] as const).map((m) => (
           <button
@@ -81,7 +92,10 @@ function LoginPage() {
             className="mt-1 w-full rounded-lg border border-border bg-paper px-3 py-2 text-sm"
           />
         </label>
-        <button type="submit" className="w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
+        <button
+          type="submit"
+          className="w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+        >
           {mode === "login" ? "Log in" : "Create account"}
         </button>
       </form>

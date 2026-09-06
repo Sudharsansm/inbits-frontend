@@ -17,6 +17,8 @@ import { loadFeedForRoute } from "@/lib/feedLoader";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { usePref } from "@/hooks/usePrefs";
 import { useSavedPosts } from "@/lib/savedPosts";
+import type { FeedItem } from "@/lib/api";
+import { prefetchFeedItemImages } from "@/lib/prefetchImages";
 import { diversifyBySource } from "@/lib/liveGroups";
 import { excludeSeen, markSeen } from "@/lib/seenArticles";
 import { hasImage } from "@/lib/postImage";
@@ -152,12 +154,37 @@ function Updates() {
     return { resetOnMount: !lastReelId, returnToPostId: lastReelId };
   });
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   const {
     items: liveItems,
     hasMore,
     loadMore,
     refresh,
-  } = useLiveFeed({ category: "All", pageSize: 6, cacheKey: "updates", initialItems });
+  } = useLiveFeed({
+    category: "All",
+    // FIX: "Smart Batches" — Instagram's cursor-based pagination pulls
+    // roughly 10-15 posts per page, not a handful at a time (too many
+    // round trips) or everything at once (wasted bandwidth for content
+    // the reader may never scroll to). 12 lands in that same range.
+    pageSize: 12,
+    cacheKey: "updates",
+    initialItems,
+    // Updates scrolls inside its own reel-list div (see `scrollRef`
+    // below), not the window — telling the hook about that container is
+    // what makes fresh content actually bring the reader to the top of
+    // *that* list instead of trying (and failing) to scroll the window.
+    scrollContainerRef: scrollRef,
+    // FIX: same issue Home had — the socket's first "initial" message
+    // fires on every mount (including a genuinely fresh visit), and
+    // without this it always took the position-*preserving* merge path,
+    // so a reel scraped between the SSR fetch and the socket connecting
+    // landed above reel #1 — already scrolled past, so the reader kept
+    // seeing older reels and the "fresh" content never actually showed
+    // up. `resetOnMount` is already false when this mount is genuinely
+    // resuming a remembered reel position, so that case is unaffected.
+    treatInitialMergeAsFresh: resetOnMount,
+  });
 
   // Skip anything already shown on Home or Search this session — same
   // shared registry Home writes to. Stands is still the place to find
@@ -179,16 +206,47 @@ function Updates() {
     setBrokenImageIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   }, []);
 
-  const posts = useMemo(
-    () =>
-      diversifyBySource(unseenPool).filter(
-        (item) => hasImage(item) && !brokenImageIds.has(item.id),
-      ),
-    [unseenPool, brokenImageIds],
-  );
+  // FIX: `diversifyBySource(unseenPool)` used to be recomputed from
+  // scratch on every change — a full re-round-robin over the *entire*
+  // current pool, old and new items together. Since round-robin order
+  // depends on how many items each source currently has queued, adding
+  // even one fresh item could shift where every other reel landed,
+  // including ones already scrolled past. That's what looked like
+  // "already-seen news showing up again": it wasn't actually a repeat,
+  // it was the same reel resurfacing at a *different* position than
+  // before.
+  //
+  // Instagram doesn't do this — once a post has a place in your feed, it
+  // keeps it; only genuinely new posts get inserted, and always at the
+  // top. `stableOrderRef` remembers the order already shown: each
+  // recompute only diversifies the ids the reader has *never* been shown
+  // before, and puts that small batch in front of the untouched existing
+  // order — nothing already placed ever moves or reappears out of
+  // sequence.
+  const stableOrderRef = useRef<string[]>([]);
+  const posts = useMemo(() => {
+    const availableById = new Map(unseenPool.map((item) => [item.id, item] as const));
+    const existingIds = stableOrderRef.current.filter(
+      (id) => availableById.has(id) && !brokenImageIds.has(id),
+    );
+    const existingSet = new Set(existingIds);
+    const brandNewItems = unseenPool.filter(
+      (item) => !existingSet.has(item.id) && hasImage(item) && !brokenImageIds.has(item.id),
+    );
+    const diversifiedNewIds = diversifyBySource(brandNewItems).map((item) => item.id);
+    const nextOrder = [...diversifiedNewIds, ...existingIds];
+    stableOrderRef.current = nextOrder;
+    return nextOrder
+      .map((id) => availableById.get(id))
+      .filter((item): item is FeedItem => Boolean(item));
+  }, [unseenPool, brokenImageIds]);
 
   useEffect(() => {
-    if (posts.length > 0) markSeen(posts.map((p) => p.id), "updates");
+    if (posts.length > 0)
+      markSeen(
+        posts.map((p) => p.id),
+        "updates",
+      );
   }, [posts]);
   const [liked, setLiked] = useState<Record<string, boolean>>({});
   const { recordLike } = useInterestProfile();
@@ -197,7 +255,6 @@ function Updates() {
   const [shareFor, setShareFor] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const tapRef = useRef<Record<string, number>>({});
-  const scrollRef = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
 
   const reelRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -314,6 +371,22 @@ function Updates() {
     reelRefs.current.forEach((el) => io.observe(el));
     return () => io.disconnect();
   }, [posts]);
+
+  // "While you look at one post, the app quietly downloads the next few
+  // in the background" — the same background-prefetch behavior
+  // Instagram's feed relies on for the next reel to already feel instant
+  // by the time you swipe to it. `loading="lazy"` on the `<img>` itself
+  // (see ImageCarousel.tsx) only starts that request once the element is
+  // actually near the viewport; here we go a step further and warm the
+  // browser's cache for the next few reels *ahead of* the one currently
+  // on screen, keyed off the same `activeId` this page already tracks.
+  const PREFETCH_AHEAD = 3;
+  useEffect(() => {
+    if (!activeId) return;
+    const index = posts.findIndex((p) => p.id === activeId);
+    if (index === -1) return;
+    prefetchFeedItemImages(posts.slice(index + 1, index + 1 + PREFETCH_AHEAD));
+  }, [activeId, posts]);
 
   // Same swipe-down-to-refresh as the rest of the app: bound to this
   // reel's own scroll container since it scrolls independently of the

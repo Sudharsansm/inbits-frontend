@@ -109,9 +109,12 @@ export function ImageCarousel({
   useEffect(() => {
     // Cancel any in-flight retry timers when this post unmounts (e.g.
     // scrolled out and removed) so we never call setState after the
-    // component is gone.
+    // component is gone. Captured here (not read fresh in the cleanup)
+    // since `timersRef.current` is a plain object that keeps being
+    // mutated by `scheduleRetry` for as long as the component is mounted.
+    const timers = timersRef.current;
     return () => {
-      Object.values(timersRef.current).forEach(clearTimeout);
+      Object.values(timers).forEach(clearTimeout);
     };
   }, []);
 
