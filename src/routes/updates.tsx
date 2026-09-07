@@ -469,7 +469,7 @@ function Updates() {
                   slot and the reel card one level too deep and silently
                   break snap-scrolling for every reel. */}
               {idx > 0 && idx % 4 === 0 && (
-                <LazyAdReel slot="0000000001" scrollRootRef={scrollRef} />
+                <LazyAdReel slot="7451735677" scrollRootRef={scrollRef} />
               )}
               <div
                 data-post-id={p.id}

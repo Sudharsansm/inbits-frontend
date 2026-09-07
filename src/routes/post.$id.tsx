@@ -342,7 +342,7 @@ function PostArticle({ post, related }: { post: FeedItem; related: FeedItem[] })
             never mid-paragraph. One placement per article keeps this from
             feeling like it's competing with the reading experience. */}
         <div className="mt-6">
-          <AdSlot slot="0000000006" label="Sponsored" />
+          <AdSlot slot="4019651928" label="Sponsored" />
         </div>
 
         {/* Share row */}

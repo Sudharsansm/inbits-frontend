@@ -77,6 +77,40 @@ function writeSavedWindowScrollY(value: number): void {
   }
 }
 
+function AutoRefreshOnDisconnect({
+  connected,
+  refresh,
+}: {
+  connected: boolean;
+  refresh: () => void;
+}) {
+  useEffect(() => {
+    if (connected) return;
+    const t = setTimeout(() => refresh(), 4000);
+    return () => clearTimeout(t);
+  }, [connected, refresh]);
+
+  return null;
+}
+
+function AutoRefreshWhenCaughtUp({
+  hasMore,
+  refresh,
+}: {
+  hasMore: boolean;
+  refresh: () => void;
+}) {
+  useEffect(() => {
+    // Only once there's genuinely nothing left to load — don't fire
+    // while still paging through older posts.
+    if (hasMore) return;
+    const interval = setInterval(() => refresh(), 45_000);
+    return () => clearInterval(interval);
+  }, [hasMore, refresh]);
+
+  return null;
+}
+
 let savedWindowScrollY = readSavedWindowScrollY();
 
 export const Route = createFileRoute("/")({
@@ -451,6 +485,11 @@ function Home() {
         )}
         {feedPool.map((item, index) => {
           const slot = index % 8;
+          // Ad cadence is intentionally independent of the rail rotation
+          // above -- change the "4" here to show the ad more or less
+          // often (every Nth post), without affecting how often Stands /
+          // Journal / Channels / Recommended / Jobs show up.
+          const showAd = index > 0 && index % 4 === 0;
           return (
             <Fragment key={item.id}>
               {/* FIX: only the first card is above the fold on a cold
@@ -485,7 +524,7 @@ function Home() {
                   other rails, so it reads as part of the feed's normal
                   rhythm rather than an interruption. Swap the slot ID for
                   the ad unit you create in the AdSense dashboard. */}
-              {slot === 4 && <NativeHomeAd slot="0000000000" />}
+              {slot === 4 && <NativeHomeAd slot="6413880979" />}
               {slot === 5 && <ChannelsRail channels={channels} />}
               {slot === 6 && <RecommendedRail picks={recommended} />}
               {slot === 7 && <JobsRail />}
@@ -504,15 +543,18 @@ function Home() {
             Loading more bits…
           </>
         ) : feedPool.length > 0 ? (
-          <span>You're all caught up.</span>
-        ) : null}
+              <>
+                <span>You're all caught up.</span>
+                <AutoRefreshWhenCaughtUp hasMore={hasMore} refresh={refresh} />
+              </>
+            ): null}
       </div>
 
-      {showReconnecting && (
-        <div className="flex items-center justify-center gap-1.5 pb-6 text-[11px] text-muted-foreground">
-          <WifiOff className="h-3.5 w-3.5" /> Reconnecting to live feed…
-        </div>
-      )}
+      {/* Silent auto-refresh instead of a "Reconnecting..." message: if the
+          socket is still down 4s after dropping, quietly re-run the feed
+          refresh so content catches back up without ever bothering the
+          reader with a status line. */}
+      <AutoRefreshOnDisconnect connected={connected} refresh={refresh} />
     </AppShell>
   );
 }

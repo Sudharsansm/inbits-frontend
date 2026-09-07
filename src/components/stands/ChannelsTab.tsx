@@ -23,7 +23,7 @@ export function ChannelsTab({ channels }: { channels: Channel[] }) {
         )}
         {channels.map((c, idx) => (
           <div key={c.slug}>
-            {idx > 0 && idx % 5 === 0 && <AdSlot slot="0000000004" />}
+            {idx > 0 && idx % 5 === 0 && <AdSlot slot="8888835229" />}
             <Link
               to="/channel/$slug"
               params={{ slug: c.slug }}

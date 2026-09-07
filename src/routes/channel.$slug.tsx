@@ -106,7 +106,7 @@ function ChannelPage() {
         <ul className="mt-3 space-y-3">
           {channel.stories.map((s, idx) => (
             <li key={s.id}>
-              {idx > 0 && idx % 5 === 0 && <AdSlot slot="0000000005" />}
+              {idx > 0 && idx % 5 === 0 && <AdSlot slot="2373352164" />}
               <button
                 onClick={() =>
                   openArticle({

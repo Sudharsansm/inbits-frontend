@@ -160,7 +160,7 @@ function SearchPage() {
               <Fragment key={item.id}>
                 {idx > 0 && idx % 6 === 0 && (
                   <li>
-                    <AdSlot slot="0000000007" />
+                    <AdSlot slot="9759063760" />
                   </li>
                 )}
                 <SearchResultRow item={item} />
@@ -180,7 +180,7 @@ function SearchPage() {
                 <Fragment key={s.id}>
                   {idx > 0 && idx % 7 === 0 && (
                     <div className="mb-2 break-inside-avoid">
-                      <AdSlot slot="0000000008" />
+                      <AdSlot slot="6051024090" />
                     </div>
                   )}
                   <DiscoverCard item={s} />
