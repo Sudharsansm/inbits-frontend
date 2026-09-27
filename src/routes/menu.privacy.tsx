@@ -1,3 +1,4 @@
+
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Card, MenuPage, Row, Switch } from "@/components/menu/MenuPage";
@@ -9,12 +10,14 @@ export const Route = createFileRoute("/menu/privacy")({
       { title: "Privacy · InBits" },
       {
         name: "description",
-        content: "Control personalisation, reading history and local data stored by InBits.",
+        content:
+          "Control personalisation, reading history and local data stored by InBits.",
       },
       { property: "og:title", content: "Privacy · InBits" },
       {
         property: "og:description",
-        content: "Control personalisation, reading history and local data stored by InBits.",
+        content:
+          "Control personalisation, reading history and local data stored by InBits.",
       },
     ],
   }),
@@ -22,9 +25,21 @@ export const Route = createFileRoute("/menu/privacy")({
 });
 
 function PrivacyPage() {
-  const [personalise, setPersonalise] = usePref("privacy.personalise", true);
-  const [history, setHistory] = usePref("privacy.history", true);
-  const [analytics, setAnalytics] = usePref("privacy.analytics", false);
+  const [personalise, setPersonalise] = usePref(
+    "privacy.personalise",
+    true
+  );
+
+  const [history, setHistory] = usePref(
+    "privacy.history",
+    true
+  );
+
+  const [analytics, setAnalytics] = usePref(
+    "privacy.analytics",
+    false
+  );
+
   const [cleared, setCleared] = useState(false);
 
   const clearAll = () => {
@@ -33,13 +48,17 @@ function PrivacyPage() {
         .filter((k) => k.startsWith("inbits:"))
         .forEach((k) => localStorage.removeItem(k));
     } catch {
-      /* ignore */
+      // Ignore localStorage errors
     }
+
     setCleared(true);
   };
 
   return (
-    <MenuPage title="Privacy" subtitle="No trackers. Everything stays on this device.">
+    <MenuPage
+      title="Privacy"
+      subtitle="No trackers. Everything stays on this device."
+    >
       <Card>
         <Row
           label="Personalised feed"
@@ -52,13 +71,19 @@ function PrivacyPage() {
             />
           }
         />
+
         <Row
           label="Reading history"
           hint="Remember what you've opened"
           right={
-            <Switch label="Reading history" on={history} onToggle={() => setHistory(!history)} />
+            <Switch
+              label="Reading history"
+              on={history}
+              onToggle={() => setHistory(!history)}
+            />
           }
         />
+
         <Row
           label="Anonymous analytics"
           hint="Off by default"
@@ -80,9 +105,63 @@ function PrivacyPage() {
       </button>
 
       <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-        InBits stores your preferences, saved stories and followed sources in your browser only.
-        Nothing is sent to an ad network, and clearing local data removes it permanently.
+        The toggles above control preferences, saved stories and
+        followed sources, which InBits stores in your browser only.
+        Clearing local data removes them permanently.
       </p>
+
+      {/* Advertising & cookies disclosure */}
+      <Card>
+        <div className="p-4">
+          <h2 className="serif text-sm font-bold">
+            Advertising &amp; cookies
+          </h2>
+
+          <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+            InBits shows ads served by Google AdSense. Google and its
+            advertising partners use cookies and similar technologies
+            to serve ads based on your prior visits to this and other
+            websites, and to measure how ads perform. InBits itself
+            does not sell your data, but Google's use of advertising
+            cookies on this site is governed by Google's own policies,
+            not ours.
+          </p>
+
+          <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+            You can see and adjust how Google personalises ads for
+            you at{" "}
+            <a
+              href="https://adssettings.google.com/"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="font-semibold text-primary underline"
+            >
+              adssettings.google.com
+            </a>
+            , or opt out of personalised advertising from participating
+            companies at{" "}
+            <a
+              href="https://www.aboutads.info/choices/"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="font-semibold text-primary underline"
+            >
+              aboutads.info/choices
+            </a>
+            . Read more about how Google uses information from sites
+            that use its services at{" "}
+            <a
+              href="https://policies.google.com/technologies/partner-sites"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="font-semibold text-primary underline"
+            >
+              policies.google.com/technologies/partner-sites
+            </a>
+            .
+          </p>
+        </div>
+      </Card>
     </MenuPage>
   );
 }

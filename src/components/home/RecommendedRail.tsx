@@ -2,6 +2,7 @@ import { Sparkles } from "lucide-react";
 import type { ScoredItem } from "@/lib/recommend";
 import { InfiniteRail } from "@/components/common/InfiniteRail";
 import { useArticleViewer } from "@/lib/articleViewer";
+import { useTranslatedById } from "@/lib/i18n";
 
 /**
  * "Recommended for you" — Google News' "For You" rail, built the same
@@ -12,6 +13,7 @@ import { useArticleViewer } from "@/lib/articleViewer";
  */
 export function RecommendedRail({ picks }: { picks: ScoredItem[] }) {
   const { openArticle } = useArticleViewer();
+  const titles = useTranslatedById(picks.map(({ item }) => ({ id: item.id, text: item.title })));
   if (picks.length === 0) return null;
 
   return (
@@ -46,7 +48,7 @@ export function RecommendedRail({ picks }: { picks: ScoredItem[] }) {
                   {reason}
                 </span>
                 <div className="mt-1 line-clamp-2 text-[11px] font-semibold leading-snug text-white">
-                  {item.title}
+                  {titles.get(item.id) ?? item.title}
                 </div>
               </div>
             </div>

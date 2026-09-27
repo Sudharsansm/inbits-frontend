@@ -1,7 +1,7 @@
 {
   "name": "InBits — News & Updates worth your time",
   "short_name": "InBits",
-  "description": "A calm, book-readable feed of news, gossip, and jobs. Scraped from the best sources, served like a magazine.",
+  "description": "A calm, book-readable feed of news, gossip, and jobs — summarised from the best sources, with links back to read the full story, served like a magazine.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

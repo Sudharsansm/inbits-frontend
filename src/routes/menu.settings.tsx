@@ -22,7 +22,26 @@ export const Route = createFileRoute("/menu/settings")({
 });
 
 const sizes = ["Small", "Medium", "Large"] as const;
-const languages = ["English", "हिंदी", "தமிழ்", "Español"];
+const languages = [
+  "English",
+  "Tamil",
+  "Telugu",
+  "Kannada",
+  "Malayalam",
+  "Hindi",
+  "Bengali",
+  "Marathi",
+  "Gujarati",
+  "Punjabi",
+  "Chinese",
+  "Russian",
+  "Japanese",
+  "Korean",
+  "French",
+  "British English",
+  "American English",
+  "Spanish",
+];
 
 function SettingsPage() {
   const [dark, setDark] = usePref("settings.dark", false);
@@ -100,7 +119,7 @@ function SettingsPage() {
           }
         />
       </Card>
-      <p className="mt-3 text-center text-[11px] text-muted-foreground">InBits · version 1.0.0</p>
+      <p className="mt-3 text-center text-[11px] text-muted-foreground">· InBits ·</p>
     </MenuPage>
   );
 }

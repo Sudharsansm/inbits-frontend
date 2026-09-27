@@ -19,6 +19,8 @@ import { Route as UpdatesRouteImport } from './routes/updates'
 import { Route as ChannelSlugRouteImport } from './routes/channel.$slug'
 import { Route as JobIdRouteImport } from './routes/job.$id'
 import { Route as MenuIndexRouteImport } from './routes/menu.index'
+import { Route as MenuAboutRouteImport } from './routes/menu.about'
+import { Route as MenuContactRouteImport } from './routes/menu.contact'
 import { Route as MenuLoginRouteImport } from './routes/menu.login'
 import { Route as MenuNotificationsRouteImport } from './routes/menu.notifications'
 import { Route as MenuPrivacyRouteImport } from './routes/menu.privacy'
@@ -26,6 +28,7 @@ import { Route as MenuProfileRouteImport } from './routes/menu.profile'
 import { Route as MenuSavedRouteImport } from './routes/menu.saved'
 import { Route as MenuSettingsRouteImport } from './routes/menu.settings'
 import { Route as MenuSourcesRouteImport } from './routes/menu.sources'
+import { Route as MenuTermsRouteImport } from './routes/menu.terms'
 import { Route as PostIdRouteImport } from './routes/post.$id'
 import { Route as StandsIndexRouteImport } from './routes/stands.index'
 import { Route as StandsShowcaseRouteImport } from './routes/stands.showcase'
@@ -80,6 +83,16 @@ const MenuIndexRoute = MenuIndexRouteImport.update({
   path: '/menu/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MenuAboutRoute = MenuAboutRouteImport.update({
+  id: '/menu/about',
+  path: '/menu/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MenuContactRoute = MenuContactRouteImport.update({
+  id: '/menu/contact',
+  path: '/menu/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MenuLoginRoute = MenuLoginRouteImport.update({
   id: '/menu/login',
   path: '/menu/login',
@@ -115,6 +128,11 @@ const MenuSourcesRoute = MenuSourcesRouteImport.update({
   path: '/menu/sources',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MenuTermsRoute = MenuTermsRouteImport.update({
+  id: '/menu/terms',
+  path: '/menu/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PostIdRoute = PostIdRouteImport.update({
   id: '/post/$id',
   path: '/post/$id',
@@ -141,6 +159,8 @@ export interface FileRoutesByFullPath {
   '/updates': typeof UpdatesRoute
   '/channel/$slug': typeof ChannelSlugRoute
   '/job/$id': typeof JobIdRoute
+  '/menu/about': typeof MenuAboutRoute
+  '/menu/contact': typeof MenuContactRoute
   '/menu/login': typeof MenuLoginRoute
   '/menu/notifications': typeof MenuNotificationsRoute
   '/menu/privacy': typeof MenuPrivacyRoute
@@ -148,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/menu/saved': typeof MenuSavedRoute
   '/menu/settings': typeof MenuSettingsRoute
   '/menu/sources': typeof MenuSourcesRoute
+  '/menu/terms': typeof MenuTermsRoute
   '/post/$id': typeof PostIdRoute
   '/stands/showcase': typeof StandsShowcaseRoute
   '/menu/': typeof MenuIndexRoute
@@ -162,6 +183,8 @@ export interface FileRoutesByTo {
   '/updates': typeof UpdatesRoute
   '/channel/$slug': typeof ChannelSlugRoute
   '/job/$id': typeof JobIdRoute
+  '/menu/about': typeof MenuAboutRoute
+  '/menu/contact': typeof MenuContactRoute
   '/menu/login': typeof MenuLoginRoute
   '/menu/notifications': typeof MenuNotificationsRoute
   '/menu/privacy': typeof MenuPrivacyRoute
@@ -169,6 +192,7 @@ export interface FileRoutesByTo {
   '/menu/saved': typeof MenuSavedRoute
   '/menu/settings': typeof MenuSettingsRoute
   '/menu/sources': typeof MenuSourcesRoute
+  '/menu/terms': typeof MenuTermsRoute
   '/post/$id': typeof PostIdRoute
   '/stands/showcase': typeof StandsShowcaseRoute
   '/menu': typeof MenuIndexRoute
@@ -185,6 +209,8 @@ export interface FileRoutesById {
   '/updates': typeof UpdatesRoute
   '/channel/$slug': typeof ChannelSlugRoute
   '/job/$id': typeof JobIdRoute
+  '/menu/about': typeof MenuAboutRoute
+  '/menu/contact': typeof MenuContactRoute
   '/menu/login': typeof MenuLoginRoute
   '/menu/notifications': typeof MenuNotificationsRoute
   '/menu/privacy': typeof MenuPrivacyRoute
@@ -192,6 +218,7 @@ export interface FileRoutesById {
   '/menu/saved': typeof MenuSavedRoute
   '/menu/settings': typeof MenuSettingsRoute
   '/menu/sources': typeof MenuSourcesRoute
+  '/menu/terms': typeof MenuTermsRoute
   '/post/$id': typeof PostIdRoute
   '/stands/showcase': typeof StandsShowcaseRoute
   '/menu/': typeof MenuIndexRoute
@@ -209,6 +236,8 @@ export interface FileRouteTypes {
     | '/updates'
     | '/channel/$slug'
     | '/job/$id'
+    | '/menu/about'
+    | '/menu/contact'
     | '/menu/login'
     | '/menu/notifications'
     | '/menu/privacy'
@@ -216,6 +245,7 @@ export interface FileRouteTypes {
     | '/menu/saved'
     | '/menu/settings'
     | '/menu/sources'
+    | '/menu/terms'
     | '/post/$id'
     | '/stands/showcase'
     | '/menu/'
@@ -230,6 +260,8 @@ export interface FileRouteTypes {
     | '/updates'
     | '/channel/$slug'
     | '/job/$id'
+    | '/menu/about'
+    | '/menu/contact'
     | '/menu/login'
     | '/menu/notifications'
     | '/menu/privacy'
@@ -237,6 +269,7 @@ export interface FileRouteTypes {
     | '/menu/saved'
     | '/menu/settings'
     | '/menu/sources'
+    | '/menu/terms'
     | '/post/$id'
     | '/stands/showcase'
     | '/menu'
@@ -252,6 +285,8 @@ export interface FileRouteTypes {
     | '/updates'
     | '/channel/$slug'
     | '/job/$id'
+    | '/menu/about'
+    | '/menu/contact'
     | '/menu/login'
     | '/menu/notifications'
     | '/menu/privacy'
@@ -259,6 +294,7 @@ export interface FileRouteTypes {
     | '/menu/saved'
     | '/menu/settings'
     | '/menu/sources'
+    | '/menu/terms'
     | '/post/$id'
     | '/stands/showcase'
     | '/menu/'
@@ -275,6 +311,8 @@ export interface RootRouteChildren {
   UpdatesRoute: typeof UpdatesRoute
   ChannelSlugRoute: typeof ChannelSlugRoute
   JobIdRoute: typeof JobIdRoute
+  MenuAboutRoute: typeof MenuAboutRoute
+  MenuContactRoute: typeof MenuContactRoute
   MenuLoginRoute: typeof MenuLoginRoute
   MenuNotificationsRoute: typeof MenuNotificationsRoute
   MenuPrivacyRoute: typeof MenuPrivacyRoute
@@ -282,6 +320,7 @@ export interface RootRouteChildren {
   MenuSavedRoute: typeof MenuSavedRoute
   MenuSettingsRoute: typeof MenuSettingsRoute
   MenuSourcesRoute: typeof MenuSourcesRoute
+  MenuTermsRoute: typeof MenuTermsRoute
   PostIdRoute: typeof PostIdRoute
   MenuIndexRoute: typeof MenuIndexRoute
 }
@@ -358,6 +397,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MenuIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/menu/about': {
+      id: '/menu/about'
+      path: '/menu/about'
+      fullPath: '/menu/about'
+      preLoaderRoute: typeof MenuAboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/menu/contact': {
+      id: '/menu/contact'
+      path: '/menu/contact'
+      fullPath: '/menu/contact'
+      preLoaderRoute: typeof MenuContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/menu/login': {
       id: '/menu/login'
       path: '/menu/login'
@@ -407,6 +460,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MenuSourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/menu/terms': {
+      id: '/menu/terms'
+      path: '/menu/terms'
+      fullPath: '/menu/terms'
+      preLoaderRoute: typeof MenuTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/post/$id': {
       id: '/post/$id'
       path: '/post/$id'
@@ -454,6 +514,8 @@ const rootRouteChildren: RootRouteChildren = {
   UpdatesRoute: UpdatesRoute,
   ChannelSlugRoute: ChannelSlugRoute,
   JobIdRoute: JobIdRoute,
+  MenuAboutRoute: MenuAboutRoute,
+  MenuContactRoute: MenuContactRoute,
   MenuLoginRoute: MenuLoginRoute,
   MenuNotificationsRoute: MenuNotificationsRoute,
   MenuPrivacyRoute: MenuPrivacyRoute,
@@ -461,6 +523,7 @@ const rootRouteChildren: RootRouteChildren = {
   MenuSavedRoute: MenuSavedRoute,
   MenuSettingsRoute: MenuSettingsRoute,
   MenuSourcesRoute: MenuSourcesRoute,
+  MenuTermsRoute: MenuTermsRoute,
   PostIdRoute: PostIdRoute,
   MenuIndexRoute: MenuIndexRoute,
 }

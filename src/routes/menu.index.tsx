@@ -1,6 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
-import { User, Bookmark, Settings, LogIn, ChevronRight, Bell, Globe, Shield } from "lucide-react";
+import {
+  User,
+  Bookmark,
+  Settings,
+  LogIn,
+  ChevronRight,
+  Bell,
+  Globe,
+  Shield,
+  Info,
+  Mail,
+  FileText,
+} from "lucide-react";
 
 export const Route = createFileRoute("/menu/")({
   head: () => ({
@@ -25,7 +37,10 @@ const items = [
     to: "/menu/notifications",
   },
   { icon: Globe, label: "Sources", hint: "Publishers you follow", to: "/menu/sources" },
-  { icon: Shield, label: "Privacy", hint: "No tracking, ever", to: "/menu/privacy" },
+  { icon: Shield, label: "Privacy", hint: "How your data & ads work", to: "/menu/privacy" },
+  { icon: Info, label: "About", hint: "What InBits is, and how it works", to: "/menu/about" },
+  { icon: FileText, label: "Terms of Service", hint: "The rules of using InBits", to: "/menu/terms" },
+  { icon: Mail, label: "Contact", hint: "Reach the team", to: "/menu/contact" },
   { icon: Settings, label: "Settings", hint: "Theme, language", to: "/menu/settings" },
 ] as const;
 
@@ -75,7 +90,8 @@ function Menu() {
         </Link>
 
         <p className="serif mt-6 text-center text-[11px] italic text-muted-foreground">
-          “News scraped from the best of the web — served slowly, like a good morning paper.”
+          "The news you follow, summarised and linked back to the source — read slowly, like a
+          good morning paper."
         </p>
       </section>
     </AppShell>

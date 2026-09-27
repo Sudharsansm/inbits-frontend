@@ -5,6 +5,7 @@ import { fetchJobs, type RemoteJob } from "@/lib/api";
 import type { Channel, ShowcasePanel } from "@/lib/content";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { useTranslatedById } from "@/lib/i18n";
 
 /** Desktop-only right column: channels to tune into + trending news,
  * Instagram-style — fed by the same live groupings Home computes for its
@@ -21,6 +22,7 @@ export function SuggestionsSidebar({
   const news = showcase
     .flatMap((p) => p.stories.map((s) => ({ ...s, publisher: p.publisher })))
     .slice(0, 6);
+  const newsTitles = useTranslatedById(news.map((s) => ({ id: s.id, text: s.title })));
   const [jobs, setJobs] = useState<RemoteJob[]>([]);
 
   useEffect(() => {
@@ -96,7 +98,7 @@ export function SuggestionsSidebar({
                   onClick={() =>
                     openArticle({
                       id: s.id,
-                      title: s.title,
+                      title: newsTitles.get(s.id) ?? s.title,
                       source: s.publisher,
                       sourceUrl: s.sourceUrl ?? "",
                       image: s.image,
@@ -116,7 +118,7 @@ export function SuggestionsSidebar({
                       {s.publisher}
                     </div>
                     <div className="mt-0.5 line-clamp-2 text-[13px] font-semibold leading-snug text-ink group-hover:underline">
-                      {s.title}
+                      {newsTitles.get(s.id) ?? s.title}
                     </div>
                   </div>
                 </button>

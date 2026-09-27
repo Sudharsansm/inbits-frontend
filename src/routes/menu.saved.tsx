@@ -6,6 +6,7 @@ import { fetchArticle, fetchJob, type FeedItem, type RemoteJob } from "@/lib/api
 import { useSavedPosts } from "@/lib/savedPosts";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { useToggleSet } from "@/hooks/usePrefs";
+import { useTranslatedById } from "@/lib/i18n";
 
 export const Route = createFileRoute("/menu/saved")({
   head: () => ({
@@ -32,6 +33,7 @@ function SavedPage() {
   const { openArticle } = useArticleViewer();
   const [posts, setPosts] = useState<FeedItem[]>([]);
   const [missingCount, setMissingCount] = useState(0);
+  const titles = useTranslatedById(posts.map((p) => ({ id: p.id, text: p.title })));
 
   const { list: savedJobIds, has: hasJob, toggle: toggleJob } = useToggleSet("savedJobs");
   const [jobs, setJobs] = useState<RemoteJob[]>([]);
@@ -88,7 +90,9 @@ function SavedPage() {
                   <div className="text-[10px] uppercase tracking-[0.16em] text-primary">
                     {p.category}
                   </div>
-                  <div className="serif mt-1 text-sm font-bold leading-snug">{p.title}</div>
+                  <div className="serif mt-1 text-sm font-bold leading-snug">
+                    {titles.get(p.id) ?? p.title}
+                  </div>
                   <div className="mt-1 text-[11px] text-muted-foreground">
                     {p.source} · {p.readTime} min read
                   </div>

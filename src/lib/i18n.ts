@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "@/lib/api";
 import { usePref } from "@/hooks/usePrefs";
 
@@ -6,10 +6,30 @@ import { usePref } from "@/hooks/usePrefs";
  * that's the only place this preference is set. */
 export const LANGUAGE_CODES: Record<string, string> = {
   English: "en",
-  हिंदी: "hi",
-  தமிழ்: "ta",
-  Español: "es",
+  Tamil: "ta",
+  Telugu: "te",
+  Kannada: "kn",
+  Malayalam: "ml",
+  Hindi: "hi",
+  Bengali: "bn",
+  Marathi: "mr",
+  Gujarati: "gu",
+  Punjabi: "pa",
+  Chinese: "zh",
+  Russian: "ru",
+  Japanese: "ja",
+  Korean: "ko",
+  French: "fr",
+  "British English": "en-GB",
+  "American English": "en-US",
+  Spanish: "es",
 };
+
+/** English variants that never need a translation round trip — the source
+ * text is already English, so "translating" to en/en-GB/en-US is a no-op. */
+function isEnglishVariant(code: string): boolean {
+  return code === "en" || code === "en-GB" || code === "en-US";
+}
 
 /** Current language as a backend-ready ISO code, reading the same
  * `settings.language` preference the Settings page writes to. */
@@ -62,9 +82,13 @@ function flushQueue() {
             entry.resolve(translated);
           });
         })
-        .catch(() => {
+        .catch((error) => {
           // Translation service unreachable/rate-limited — fall back to
           // the original text rather than leaving the UI stuck loading.
+          // Logged (not swallowed silently) so a misconfigured
+          // VITE_API_BASE_URL, a down backend, or a CORS/network block is
+          // visible in the console instead of just quietly not working.
+          console.error(`[i18n] translate request to "${target}" failed:`, error);
           chunk.forEach((entry) => entry.resolve(entry.text));
         });
     }
@@ -72,7 +96,7 @@ function flushQueue() {
 }
 
 function translate(text: string, target: string): Promise<string> {
-  if (!text.trim() || target === "en") return Promise.resolve(text);
+  if (!text.trim() || isEnglishVariant(target)) return Promise.resolve(text);
   const key = `${target}::${text}`;
   const cached = cache.get(key);
   if (cached) return Promise.resolve(cached);
@@ -94,7 +118,7 @@ export function useTranslated(texts: string[]): string[] {
   const [translated, setTranslated] = useState<string[]>(texts);
 
   useEffect(() => {
-    if (target === "en") {
+    if (isEnglishVariant(target)) {
       setTranslated(texts);
       return;
     }
@@ -112,4 +136,26 @@ export function useTranslated(texts: string[]): string[] {
   }, [target, texts.join("\u0000")]);
 
   return translated;
+}
+
+/**
+ * Same idea as `useTranslated`, but for rails/carousels that render many
+ * cards through a `renderItem(item)` callback. Hooks can't be called
+ * inside that callback — it runs a different number of times per render
+ * as the list grows (infinite scroll, cycling rails, etc.), which breaks
+ * React's "same hooks, same order every render" rule. Call this once at
+ * the top of the list component with every {id, text} currently on
+ * screen, then look each translation up by id inside the callback.
+ */
+export function useTranslatedById(entries: { id: string; text: string }[]): Map<string, string> {
+  const ids = entries.map((e) => e.id).join("\u0000");
+  const texts = entries.map((e) => e.text);
+  const translated = useTranslated(texts);
+
+  return useMemo(() => {
+    const map = new Map<string, string>();
+    entries.forEach((e, i) => map.set(e.id, translated[i] ?? e.text));
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids, translated]);
 }

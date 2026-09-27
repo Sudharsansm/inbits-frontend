@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, MoreVertical } from "lucide-react";
 import type { JournalCategory, ShowcasePanel } from "@/lib/content";
 import { useArticleViewer } from "@/lib/articleViewer";
+import { useTranslatedById } from "@/lib/i18n";
 
 export function StandsTab({
   showcase,
@@ -13,6 +14,9 @@ export function StandsTab({
   onOpenJournalCategory: (id: string) => void;
 }) {
   const { openArticle } = useArticleViewer();
+  const titles = useTranslatedById(
+    showcase.flatMap((panel) => panel.stories.map((s) => ({ id: s.id, text: s.title }))),
+  );
   return (
     <section className="pt-5">
       <div className="flex items-start justify-between gap-3">
@@ -55,7 +59,7 @@ export function StandsTab({
                     onClick={() =>
                       openArticle({
                         id: s.id,
-                        title: s.title,
+                        title: titles.get(s.id) ?? s.title,
                         source: panel.publisher,
                         sourceUrl: s.sourceUrl ?? "",
                         image: s.image,
@@ -67,7 +71,7 @@ export function StandsTab({
                     <div className="min-w-0 flex-1">
                       <div className="text-xs text-muted-foreground">{s.kicker}</div>
                       <div className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug">
-                        {s.title}
+                        {titles.get(s.id) ?? s.title}
                       </div>
                     </div>
                     <img

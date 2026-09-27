@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@/lib/api";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { ADSENSE_CLIENT } from "@/components/ads/AdSlot";
+import { useTranslatedById } from "@/lib/i18n";
 
 /** Auto-rotating trending slot — the most-read-looking live stories right
  * now (longest read time as a proxy for "substantial story"), not a
@@ -13,6 +14,7 @@ import { ADSENSE_CLIENT } from "@/components/ads/AdSlot";
 export function TrendingCarousel({ items }: { items: FeedItem[] }) {
   const { openArticle } = useArticleViewer();
   const slides = [...items].sort((a, b) => b.readTime - a.readTime).slice(0, 5);
+  const titles = useTranslatedById(slides.map((s) => ({ id: s.id, text: s.title })));
   const slideCount = slides.length + (slides.length > 0 ? 1 : 0);
   const [i, setI] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -56,7 +58,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
             onClick={() =>
               openArticle({
                 id: s.id,
-                title: s.title,
+                title: titles.get(s.id) ?? s.title,
                 source: s.source,
                 sourceUrl: s.sourceUrl,
                 image: s.image,
@@ -72,7 +74,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
                 {s.category}
               </span>
               <h3 className="serif mt-2 line-clamp-2 text-xl font-bold leading-tight text-white">
-                {s.title}
+                {titles.get(s.id) ?? s.title}
               </h3>
               <div className="mt-1.5 flex items-center gap-3">
                 <span className="truncate text-xs text-white/80">

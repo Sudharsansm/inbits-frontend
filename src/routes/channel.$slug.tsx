@@ -7,6 +7,7 @@ import { ChannelAvatar } from "@/components/common/ChannelAvatar";
 import { sourceOriginLabel } from "@/lib/sourceOrigin";
 import { AdSlot } from "@/components/ads/AdSlot";
 import { ArrowLeft, Headphones } from "lucide-react";
+import { useTranslatedById } from "@/lib/i18n";
 
 export const Route = createFileRoute("/channel/$slug")({
   // Was 60s, which meant re-fetching the entire live feed just to filter
@@ -61,6 +62,8 @@ function ChannelNotFound() {
 function ChannelPage() {
   const { channel } = Route.useLoaderData();
   const { openArticle } = useArticleViewer();
+  const titles = useTranslatedById(channel.stories.map((s) => ({ id: s.id, text: s.title })));
+  const summaries = useTranslatedById(channel.stories.map((s) => ({ id: s.id, text: s.summary })));
 
   return (
     <AppShell title={channel.name}>
@@ -111,11 +114,11 @@ function ChannelPage() {
                 onClick={() =>
                   openArticle({
                     id: s.id,
-                    title: s.title,
+                    title: titles.get(s.id) ?? s.title,
                     source: channel.name,
                     sourceUrl: s.sourceUrl ?? "",
                     image: s.image,
-                    excerpt: s.summary,
+                    excerpt: summaries.get(s.id) ?? s.summary,
                     category: s.category,
                     readTime: s.readTime,
                   })
@@ -127,10 +130,10 @@ function ChannelPage() {
                     {s.category}
                   </div>
                   <h3 className="serif mt-1 line-clamp-2 text-base font-bold leading-snug">
-                    {s.title}
+                    {titles.get(s.id) ?? s.title}
                   </h3>
                   <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                    {s.summary}
+                    {summaries.get(s.id) ?? s.summary}
                   </p>
                   <div
                     suppressHydrationWarning

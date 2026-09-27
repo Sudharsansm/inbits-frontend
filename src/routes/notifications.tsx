@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { fetchFeed, fetchJobs, type FeedItem, type RemoteJob } from "@/lib/api";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { Briefcase, Newspaper } from "lucide-react";
+import { useTranslatedById } from "@/lib/i18n";
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({
@@ -34,6 +35,7 @@ const tabs = ["All", "Updates", "Jobs"] as const;
 function NotificationsPage() {
   const { articles, jobs } = Route.useLoaderData();
   const [active, setActive] = useState<(typeof tabs)[number]>("All");
+  const titles = useTranslatedById(articles.map((a) => ({ id: a.id, text: a.title })));
 
   const items = [
     ...articles.map((a) => ({
@@ -44,7 +46,7 @@ function NotificationsPage() {
       text: (
         <>
           <span className="font-semibold">{a.source}</span>{" "}
-          <span className="text-foreground/80">published “{a.title}”</span>
+          <span className="text-foreground/80">published “{titles.get(a.id) ?? a.title}”</span>
         </>
       ),
       link: { to: "/post/$id" as const, params: { id: a.id } },

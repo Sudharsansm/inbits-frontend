@@ -4,11 +4,17 @@ import { useArticleViewer } from "@/lib/articleViewer";
 import { InfiniteRail } from "@/components/common/InfiniteRail";
 import { RailHeader } from "@/components/home/RailHeader";
 import { ChannelAvatar } from "@/components/common/ChannelAvatar";
+import { useTranslatedById } from "@/lib/i18n";
 
 /** Stands — News Showcase panels, grouped live by publisher (same data
  * the Stands page itself uses — see src/lib/liveGroups.ts). */
 export function StandsRail({ showcase }: { showcase: ShowcasePanel[] }) {
   const { openArticle } = useArticleViewer();
+  const titles = useTranslatedById(
+    showcase.flatMap((panel) =>
+      panel.stories.slice(0, 3).map((s) => ({ id: s.id, text: s.title })),
+    ),
+  );
   if (showcase.length === 0) return null;
   return (
     <section className="border-y border-border bg-paper py-5">
@@ -46,7 +52,7 @@ export function StandsRail({ showcase }: { showcase: ShowcasePanel[] }) {
                     onClick={() =>
                       openArticle({
                         id: s.id,
-                        title: s.title,
+                        title: titles.get(s.id) ?? s.title,
                         source: panel.publisher,
                         sourceUrl: s.sourceUrl ?? "",
                         image: s.image,
@@ -58,7 +64,7 @@ export function StandsRail({ showcase }: { showcase: ShowcasePanel[] }) {
                     <div className="min-w-0 flex-1">
                       <div className="text-xs text-muted-foreground">{s.kicker}</div>
                       <div className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug">
-                        {s.title}
+                        {titles.get(s.id) ?? s.title}
                       </div>
                     </div>
                     <img

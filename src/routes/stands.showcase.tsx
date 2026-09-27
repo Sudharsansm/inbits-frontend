@@ -4,6 +4,7 @@ import { fetchFeed, type FeedItem } from "@/lib/api";
 import { groupShowcaseFromFeed } from "@/lib/liveGroups";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { ArrowLeft, MoreVertical } from "lucide-react";
+import { useTranslatedById } from "@/lib/i18n";
 
 export const Route = createFileRoute("/stands/showcase")({
   head: () => ({
@@ -35,6 +36,9 @@ export const Route = createFileRoute("/stands/showcase")({
 function ShowcasePage() {
   const { showcase } = Route.useLoaderData();
   const { openArticle } = useArticleViewer();
+  const titles = useTranslatedById(
+    showcase.flatMap((panel) => panel.stories.map((s) => ({ id: s.id, text: s.title }))),
+  );
   return (
     <AppShell title="News Showcase">
       <div className="px-4 pt-3">
@@ -78,7 +82,7 @@ function ShowcasePage() {
                         onClick={() =>
                           openArticle({
                             id: s.id,
-                            title: s.title,
+                            title: titles.get(s.id) ?? s.title,
                             source: panel.publisher,
                             sourceUrl: s.sourceUrl ?? "",
                             image: s.image,
@@ -90,7 +94,7 @@ function ShowcasePage() {
                         <div className="min-w-0 flex-1">
                           <div className="text-xs text-muted-foreground">{s.kicker}</div>
                           <div className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug">
-                            {s.title}
+                            {titles.get(s.id) ?? s.title}
                           </div>
                         </div>
                         <img

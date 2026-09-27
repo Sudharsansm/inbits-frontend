@@ -2,6 +2,7 @@ import { ArrowLeft, BookOpen } from "lucide-react";
 import type { JournalCategory } from "@/lib/content";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { useTranslatedById } from "@/lib/i18n";
 
 export function JournalTab({
   categories,
@@ -15,6 +16,9 @@ export function JournalTab({
   onCloseCategory: () => void;
 }) {
   const { openArticle } = useArticleViewer();
+  const openArticles = openCategory?.articles ?? [];
+  const titles = useTranslatedById(openArticles.map((a) => ({ id: a.id, text: a.title })));
+  const summaries = useTranslatedById(openArticles.map((a) => ({ id: a.id, text: a.summary })));
   if (openCategory) {
     return (
       <section className="pt-4">
@@ -47,11 +51,11 @@ export function JournalTab({
                 onClick={() =>
                   openArticle({
                     id: a.id,
-                    title: a.title,
+                    title: titles.get(a.id) ?? a.title,
                     source: a.source,
                     sourceUrl: a.sourceUrl ?? "",
                     image: a.image,
-                    excerpt: a.summary,
+                    excerpt: summaries.get(a.id) ?? a.summary,
                     readTime: a.readTime,
                   })
                 }
@@ -62,10 +66,10 @@ export function JournalTab({
                     {a.source}
                   </div>
                   <h3 className="serif mt-1 line-clamp-2 text-base font-bold leading-snug">
-                    {a.title}
+                    {titles.get(a.id) ?? a.title}
                   </h3>
                   <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                    {a.summary}
+                    {summaries.get(a.id) ?? a.summary}
                   </p>
                   <div
                     suppressHydrationWarning
