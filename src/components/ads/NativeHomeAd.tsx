@@ -1,34 +1,53 @@
-import { Megaphone } from "lucide-react";
-import { ADSENSE_CLIENT, useAdUnit } from "@/components/ads/AdSlot";
+import { useEffect, useRef } from "react";
+import { Megaphone, MoreHorizontal } from "lucide-react";
+import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
+import { useAdFillStatus } from "@/hooks/useAdFillStatus";
 
 /**
- * Home-feed ad, built on PostCard's own header/body shape so it reads as
- * part of the feed (the same approach Instagram uses). The "Sponsored" /
- * "Advertisement" disclosure is always visible, as AdSense policy requires.
+ * Home-feed ad, built on PostCard's own header/body shape rather than a
+ * generic card. The "Sponsored" / "Advertisement" text sits exactly where
+ * a real post's source name and category normally sit — same font size,
+ * weight, and spacing — so it reads as part of the feed's own type
+ * system instead of a foreign interruption. This is the same approach
+ * Instagram and X use for feed ads: the disclosure is real and immediate
+ * (required by AdSense policy and basic honesty), but it lives in the
+ * page's existing visual language instead of a separate banner.
  *
- * The <ins> stays mounted while the request is in flight; the card is
- * collapsed (not removed) until AdSense reports "filled". That avoids an
- * empty "Sponsored" box, and a slow response can still appear.
- *
- * No like/save/share row: those feed the interest profile and saved list,
- * and ads must not skew either.
+ * No like/save/share row underneath — those actions are tied to
+ * `recordLike`'s interest profile and saved-posts list elsewhere in the
+ * app, and letting an ad silently feed either would quietly skew your
+ * own recommendation and "saved" data with ad interactions.
  */
 export function NativeHomeAd({ slot }: { slot: string }) {
-  const { insRef, enabled, status } = useAdUnit(slot);
+  const insRef = useRef<HTMLModElement>(null);
+  const pushed = useRef(false);
+  const status = useAdFillStatus(insRef);
 
-  if (enabled !== true) return null;
+  useEffect(() => {
+    if (pushed.current || !insRef.current) return;
+    // FIX: skip the request entirely for a placeholder slot ID or on a
+    // host AdSense won't serve on (e.g. localhost) — see AdSlot.tsx for
+    // why this was causing 400s from googleads.g.doubleclick.net.
+    if (!isAdSenseConfigured(slot)) return;
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+      pushed.current = true;
+    } catch (error) {
+      console.error("AdSense push failed", error);
+    }
+  }, [slot]);
 
-  const visible = status === "filled";
+  // Not a real, configured ad placement — render nothing instead of
+  // reserving space for a request we know we didn't make.
+  if (!isAdSenseConfigured(slot)) return null;
+
+  // No fill — don't leave a "Sponsored" post-shaped card with a blank
+  // gray box inside it sitting in the feed. Drop it so real posts fill
+  // the space instead.
+  if (status === "unfilled") return null;
 
   return (
-    <article
-      aria-hidden={!visible}
-      className={
-        visible
-          ? "feed-card w-full border-b border-border bg-paper"
-          : "pointer-events-none h-0 w-full overflow-hidden opacity-0"
-      }
-    >
+    <article className="feed-card w-full border-b border-border bg-paper">
       <header className="flex items-center gap-2.5 px-3 py-2.5">
         <div className="grid h-9 w-9 flex-none place-items-center rounded-full bg-secondary text-muted-foreground">
           <Megaphone className="h-4 w-4" />
@@ -37,9 +56,16 @@ export function NativeHomeAd({ slot }: { slot: string }) {
           <div className="truncate text-[13px] font-semibold leading-tight">Sponsored</div>
           <div className="text-[10px] text-muted-foreground">Advertisement</div>
         </div>
+        <button
+          type="button"
+          aria-label="Ad options"
+          className="rounded-full p-1.5 hover:bg-secondary"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
       </header>
 
-      <div className="relative flex min-h-[200px] w-full items-center justify-center bg-secondary/30 px-3 py-3">
+      <div className="relative flex min-h-[220px] w-full items-center justify-center bg-secondary/30 px-3 py-3">
         <ins
           ref={insRef}
           className="adsbygoogle block w-full"

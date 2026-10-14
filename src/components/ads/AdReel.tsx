@@ -1,74 +1,86 @@
-import { useEffect } from "react";
-import { ADSENSE_CLIENT, useAdUnit } from "@/components/ads/AdSlot";
-import type { AdFillStatus } from "@/hooks/useAdFillStatus";
+import { useEffect, useRef } from "react";
+import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
+import { useAdFillStatus, type AdFillStatus } from "@/hooks/useAdFillStatus";
 
 /**
- * A "reel" slot for the Updates feed. It uses exactly the same frame as
- * UpdateReel (9:16 box, full width on phones, max 420px on desktop, same
- * paper background and snap-scroll slot), so it fills the screen like the
- * reels around it. The ad itself is centered inside that frame.
+ * A full-screen "reel" slot for the Updates feed. Visually matches
+ * UpdateReel's frame (same aspect box, same paper background) so it sits
+ * in the snap-scroll rhythm without looking like a broken card, but never
+ * autoplays sound/video and never intercepts the double-tap-to-like
+ * gesture other reels use — it's a still ad, not content pretending not
+ * to be one.
  *
- * AdSense display ads come in fixed creative sizes and policy forbids
- * stretching or cropping them, so the ad is centered at its natural size
- * on a dark backdrop rather than scaled to the full height.
- *
- * "Sponsored" is always shown. Nothing overlaps the ad (no controls on
- * top of it), and double-tap-to-like is not attached here.
+ * Swap `slot` for the ad unit ID you create for "Updates reels" in the
+ * AdSense dashboard (keep it separate from the Home feed unit so you can
+ * see performance per-surface).
  */
 export function AdReel({
   slot,
   onStatusChange,
 }: {
   slot: string;
-  /** Lets the parent LazyAdReel collapse its snap-scroll wrapper when
-   * the slot has no fill. */
+  /** Notifies the caller once AdSense resolves the request, so a parent
+   * wrapper (LazyAdReel's snap-scroll placeholder) can collapse itself
+   * too — this component returning `null` only removes what's *inside*
+   * that wrapper, not the wrapper's own full-height snap slot. */
   onStatusChange?: (status: AdFillStatus) => void;
 }) {
-  // Longer timeout than feed ads: this slot is mounted ahead of the
-  // reader, and a late fill is fine.
-  const { insRef, enabled, status } = useAdUnit(slot, 15000);
+  const insRef = useRef<HTMLModElement>(null);
+  const pushed = useRef(false);
+  const status = useAdFillStatus(insRef);
 
   useEffect(() => {
-    if (enabled === null) return;
-    onStatusChange?.(enabled ? status : "unfilled");
-  }, [enabled, status, onStatusChange]);
+    if (pushed.current || !insRef.current) return;
+    // FIX: skip the request entirely for a placeholder slot ID or on a
+    // host AdSense won't serve on (e.g. localhost) — see AdSlot.tsx for
+    // why this was causing 400s from googleads.g.doubleclick.net.
+    if (!isAdSenseConfigured(slot)) return;
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+      pushed.current = true;
+    } catch (error) {
+      console.error("AdSense push failed", error);
+    }
+  }, [slot]);
 
-  if (enabled !== true) return null;
+  useEffect(() => {
+    onStatusChange?.(status);
+  }, [status, onStatusChange]);
+
+  // Not a real, configured ad placement — render nothing instead of
+  // holding an empty full-height snap slot for a request we know we
+  // didn't make. Also notify the parent so LazyAdReel collapses its
+  // wrapper, same as a genuine "unfilled" response below.
+  useEffect(() => {
+    if (!isAdSenseConfigured(slot)) onStatusChange?.("unfilled");
+  }, [slot, onStatusChange]);
+
+  if (!isAdSenseConfigured(slot)) return null;
+
+  // No fill — don't hold a blank "Sponsored" reel in the snap-scroll
+  // list. The parent LazyAdReel also collapses its wrapper via
+  // onStatusChange above, so this reel disappears from the scroll
+  // entirely instead of leaving an empty full-screen card behind.
   if (status === "unfilled") return null;
-
-  const loading = status === "pending";
 
   return (
     <section className="flex h-full w-full snap-start snap-always items-center justify-center bg-paper select-none">
-      <div className="relative aspect-[9/16] h-auto max-h-full w-full max-w-full overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-800 to-black md:max-w-[420px]">
-        <div className="absolute inset-x-0 top-0 z-10 flex items-center gap-2 p-4 text-[10px] uppercase tracking-[0.18em]">
+      <div className="relative aspect-[9/16] w-full max-w-full h-auto max-h-full overflow-hidden rounded-2xl border border-border bg-card md:max-w-[420px]">
+        <div className="absolute left-3 top-3 z-10 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em]">
           <span className="rounded-full bg-primary px-2 py-0.5 text-primary-foreground">
             Sponsored
           </span>
-          <span className="text-white/70">Advertisement</span>
         </div>
-
-        <div className="absolute inset-0 flex items-center justify-center px-3 py-16">
-          <div
-            className={`w-full overflow-hidden rounded-2xl bg-white shadow-xl ${
-              loading ? "animate-pulse" : ""
-            }`}
-            style={{ minHeight: 250 }}
-          >
-            <ins
-              ref={insRef}
-              className="adsbygoogle block w-full"
-              style={{ display: "block" }}
-              data-ad-client={ADSENSE_CLIENT}
-              data-ad-slot={slot}
-              data-ad-format="auto"
-              data-full-width-responsive="true"
-            />
-          </div>
-        </div>
-
-        <div className="absolute inset-x-0 bottom-0 z-10 p-4 text-center text-[11px] text-white/60">
-          Scroll to continue
+        <div className="flex h-full w-full items-center justify-center px-4">
+          <ins
+            ref={insRef}
+            className="adsbygoogle block w-full"
+            style={{ display: "block" }}
+            data-ad-client={ADSENSE_CLIENT}
+            data-ad-slot={slot}
+            data-ad-format="auto"
+            data-full-width-responsive="true"
+          />
         </div>
       </div>
     </section>
