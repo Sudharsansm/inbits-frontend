@@ -72,7 +72,7 @@ export function NativeHomeAd({ slot }: { slot: string }) {
           style={{ display: "block" }}
           data-ad-client={ADSENSE_CLIENT}
           data-ad-slot={slot}
-          data-ad-format="fluid"
+          data-ad-format="auto"
           data-full-width-responsive="true"
         />
       </div>
