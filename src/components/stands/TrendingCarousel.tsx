@@ -95,7 +95,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
             className="adsbygoogle block w-full px-4"
             style={{ display: "block" }}
             data-ad-client={ADSENSE_CLIENT}
-            data-ad-slot="6413880979"
+            data-ad-slot="0000000002"
             data-ad-format="fluid"
             data-full-width-responsive="true"
           />
