@@ -1,16 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@/lib/api";
 import { useArticleViewer } from "@/lib/articleViewer";
-import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
+import { ADSENSE_CLIENT } from "@/components/ads/AdSlot";
 import { useTranslatedById } from "@/lib/i18n";
-
-/**
- * Ad unit ID for the sponsored slide at the end of the carousel.
- * Create a "Display ad" unit in AdSense (Ads > By ad unit) and paste its
- * numeric ID here. While this is still all zeros the sponsored slide is
- * not rendered at all (no empty card, no rejected ad request).
- */
-const TRENDING_AD_SLOT = "6413880979";
 
 /** Auto-rotating trending slot — the most-read-looking live stories right
  * now (longest read time as a proxy for "substantial story"), not a
@@ -23,13 +15,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
   const { openArticle } = useArticleViewer();
   const slides = [...items].sort((a, b) => b.readTime - a.readTime).slice(0, 5);
   const titles = useTranslatedById(slides.map((s) => ({ id: s.id, text: s.title })));
-  // Decided after mount so server and client render the same HTML
-  // (isAdSenseConfigured depends on window.location).
-  const [adEnabled, setAdEnabled] = useState(false);
-  useEffect(() => {
-    setAdEnabled(isAdSenseConfigured(TRENDING_AD_SLOT));
-  }, []);
-  const slideCount = slides.length + (slides.length > 0 && adEnabled ? 1 : 0);
+  const slideCount = slides.length + (slides.length > 0 ? 1 : 0);
   const [i, setI] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
   const adInsRef = useRef<HTMLModElement>(null);
@@ -48,7 +34,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
     // The ad slide only mounts once its turn comes around — push it into
     // AdSense's queue the first time that happens rather than on mount,
     // so a slide nobody scrolls to never requests an impression.
-    if (adEnabled && i === slides.length && !adPushed.current && adInsRef.current) {
+    if (i === slides.length && !adPushed.current && adInsRef.current) {
       try {
         (window.adsbygoogle = window.adsbygoogle || []).push({});
         adPushed.current = true;
@@ -56,7 +42,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
         console.error("AdSense push failed", error);
       }
     }
-  }, [i, slides.length, adEnabled]);
+  }, [i, slides.length]);
 
   if (slides.length === 0) return null;
 
@@ -99,22 +85,21 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
           </button>
         ))}
 
-        {adEnabled && (
-          <div className="relative flex h-52 w-full flex-none snap-center items-center justify-center overflow-hidden rounded-2xl border border-border bg-card">
-            <span className="absolute left-3 top-3 rounded bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-primary-foreground">
-              Sponsored
-            </span>
-            <ins
-              ref={adInsRef}
-              className="adsbygoogle block w-full px-4"
-              style={{ display: "block" }}
-              data-ad-client={ADSENSE_CLIENT}
-              data-ad-slot={TRENDING_AD_SLOT}
-              data-ad-format="auto"
-              data-full-width-responsive="true"
-            />
-          </div>
-        )}
+        {/* Sponsored slide */}
+        <div className="relative flex h-52 w-full flex-none snap-center items-center justify-center overflow-hidden rounded-2xl border border-border bg-card">
+          <span className="absolute left-3 top-3 rounded bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-primary-foreground">
+            Sponsored
+          </span>
+          <ins
+            ref={adInsRef}
+            className="adsbygoogle block w-full px-4"
+            style={{ display: "block" }}
+            data-ad-client={ADSENSE_CLIENT}
+            data-ad-slot="0000000002"
+            data-ad-format="fluid"
+            data-full-width-responsive="true"
+          />
+        </div>
       </div>
       <div className="mt-2.5 flex justify-center gap-1.5">
         {slides.map((s, idx) => (
@@ -125,13 +110,11 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
             className={`h-1.5 rounded-full transition-all ${idx === i ? "w-5 bg-primary" : "w-1.5 bg-border"}`}
           />
         ))}
-        {adEnabled && (
-          <button
-            aria-label="Go to sponsored slide"
-            onClick={() => setI(slides.length)}
-            className={`h-1.5 rounded-full transition-all ${i === slides.length ? "w-5 bg-primary" : "w-1.5 bg-border"}`}
-          />
-        )}
+        <button
+          aria-label="Go to sponsored slide"
+          onClick={() => setI(slides.length)}
+          className={`h-1.5 rounded-full transition-all ${i === slides.length ? "w-5 bg-primary" : "w-1.5 bg-border"}`}
+        />
       </div>
     </div>
   );

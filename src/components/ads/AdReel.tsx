@@ -78,7 +78,7 @@ export function AdReel({
             style={{ display: "block" }}
             data-ad-client={ADSENSE_CLIENT}
             data-ad-slot={slot}
-            data-ad-format="auto"
+            data-ad-format="fluid"
             data-full-width-responsive="true"
           />
         </div>
