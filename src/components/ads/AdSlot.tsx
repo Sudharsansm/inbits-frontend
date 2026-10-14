@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Megaphone } from "lucide-react";
 import { useAdFillStatus } from "@/hooks/useAdFillStatus";
 
 /**
@@ -64,6 +65,57 @@ export function isAdSenseConfigured(slot: string): boolean {
   return !isPlaceholderSlot(slot) && !isLikelyUnservableHost();
 }
 
+/**
+ * Shared logic for every ad component: decides (after mount, so server and
+ * client HTML match) whether this slot can serve, pushes the request once,
+ * and reports the fill status.
+ *
+ * `enabled` is null until the first client effect has run.
+ */
+export function useAdUnit(slot: string, timeoutMs?: number) {
+  const nodeRef = useRef<HTMLModElement | null>(null);
+  const pushed = useRef(false);
+  const [mounted, setMounted] = useState(false);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+
+  // Callback ref: lets us know when the <ins> actually exists, even if the
+  // component renders it later (e.g. a carousel that has no items yet).
+  const insRef = useCallback((node: HTMLModElement | null) => {
+    nodeRef.current = node;
+    if (!node) pushed.current = false; // a re-mounted <ins> needs a new request
+    setMounted(!!node);
+  }, []);
+
+  useEffect(() => {
+    setEnabled(isAdSenseConfigured(slot));
+  }, [slot]);
+
+  const ready = enabled === true && mounted;
+  const status = useAdFillStatus(nodeRef, { enabled: ready, timeoutMs });
+
+  useEffect(() => {
+    if (!ready || pushed.current || !nodeRef.current) return;
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+      pushed.current = true;
+    } catch (error) {
+      console.error("AdSense push failed", error);
+    }
+  }, [ready]);
+
+  return { insRef, enabled, status };
+}
+
+/**
+ * Feed ad shaped like a post card (avatar-style icon, "Sponsored" label,
+ * then the ad). The label is always shown — AdSense requires ads to be
+ * clearly identified — but it lives in the same visual language as the
+ * feed's own posts.
+ *
+ * The <ins> stays mounted while the request is in flight; the card is
+ * collapsed (not unmounted) until AdSense reports "filled", so there is
+ * never an empty "Sponsored" box and a slow response can still show.
+ */
 function AdSlotInner({
   slot,
   className = "",
@@ -72,58 +124,44 @@ function AdSlotInner({
   /** Numeric ad unit ID from the AdSense dashboard. */
   slot: string;
   className?: string;
-  /** Small caption shown above the unit, matching how the feed already
-   * labels its own rails (Stands, Journal, etc). Required by AdSense's
-   * policies: sponsored content must be clearly identified. */
   label?: string;
 }) {
-  const insRef = useRef<HTMLModElement>(null);
-  const pushed = useRef(false);
-  const reactId = useId();
-  const status = useAdFillStatus(insRef);
+  const { insRef, enabled, status } = useAdUnit(slot);
 
-  useEffect(() => {
-    // Guards against React 18 StrictMode's double-invoke in dev, and
-    // against this component remounting if the feed re-renders the
-    // Fragment it lives in — pushing the same <ins> twice throws.
-    if (pushed.current) return;
-    if (!insRef.current) return;
-    if (!isAdSenseConfigured(slot)) return;
+  if (enabled !== true) return null;
 
-    try {
-      (window.adsbygoogle = window.adsbygoogle || []).push({});
-      pushed.current = true;
-    } catch (error) {
-      console.error("AdSense push failed", error);
-    }
-  }, [slot]);
-
-  // Same "not a real ad placement yet" skip as the push above — render
-  // nothing rather than reserving space for a request we know we didn't
-  // make.
-  if (!isAdSenseConfigured(slot)) return null;
-
-  // No ad came back (or the request never resolved) — don't leave the
-  // card's border/label/padding sitting there empty, drop the slot
-  // entirely so the feed collapses around it.
-  if (status === "unfilled") return null;
+  const visible = status === "filled";
 
   return (
-    <div className={`mb-4 overflow-hidden rounded-xl border bg-card ${className}`}>
-      <div className="flex items-center gap-2 px-3 pt-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-        <span>{label}</span>
+    <article
+      aria-hidden={!visible}
+      className={
+        visible
+          ? `mb-4 w-full overflow-hidden rounded-xl border bg-card ${className}`
+          : "pointer-events-none h-0 w-full overflow-hidden opacity-0"
+      }
+    >
+      <header className="flex items-center gap-2.5 px-3 py-2.5">
+        <div className="grid h-8 w-8 flex-none place-items-center rounded-full bg-secondary text-muted-foreground">
+          <Megaphone className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold leading-tight">{label}</div>
+          <div className="text-[10px] text-muted-foreground">Advertisement</div>
+        </div>
+      </header>
+      <div className="min-h-[120px] w-full px-3 pb-3">
+        <ins
+          ref={insRef}
+          className="adsbygoogle block w-full"
+          style={{ display: "block" }}
+          data-ad-client={ADSENSE_CLIENT}
+          data-ad-slot={slot}
+          data-ad-format="auto"
+          data-full-width-responsive="true"
+        />
       </div>
-      <ins
-        ref={insRef}
-        key={reactId}
-        className="adsbygoogle block px-3 pb-3 pt-1"
-        style={{ display: "block" }}
-        data-ad-client={ADSENSE_CLIENT}
-        data-ad-slot={slot}
-        data-ad-format="auto"
-        data-full-width-responsive="true"
-      />
-    </div>
+    </article>
   );
 }
 

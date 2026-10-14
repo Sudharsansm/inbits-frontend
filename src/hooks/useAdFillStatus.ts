@@ -7,25 +7,28 @@ export type AdFillStatus = "pending" | "filled" | "unfilled";
  * AdSense actually filled it.
  *
  * Once AdSense resolves a slot it stamps the element with
- * `data-ad-status="filled"` or `data-ad-status="unfilled"`. Google's
- * own CSS (`ins.adsbygoogle[data-ad-status="unfilled"] { display: none }`)
- * only collapses the `<ins>` itself — it doesn't know about the label,
- * padding, or border our wrapper components draw around it, so a "no
- * fill" response was still leaving a visibly empty card. Callers should
- * use this hook to hide the *whole* wrapper once status is "unfilled".
+ * `data-ad-status="filled"` or `data-ad-status="unfilled"`.
  *
- * If the AdSense script never loads at all (blocked by an ad blocker,
- * offline, script failed) `data-ad-status` never gets set, so this also
- * falls back to "unfilled" after `timeoutMs` — otherwise those slots
- * would stay reserved as blank space forever.
+ * IMPORTANT: callers must keep the `<ins>` mounted for as long as the
+ * request is in flight, and hide the wrapper with CSS (not by returning
+ * null) while status !== "filled". The old version let callers unmount
+ * the `<ins>` after a short timeout, so on a slow network the ad
+ * request finished *after* the element was already gone and the ad never
+ * showed.
+ *
+ * - The timeout is only a fallback for "script blocked / never answered".
+ * - The observer keeps running after the timeout, so a late "filled"
+ *   still flips the status and the ad appears.
+ * - `enabled` lets the caller delay observing until the `<ins>` exists.
  */
 export function useAdFillStatus(
   insRef: RefObject<HTMLModElement | null>,
-  { timeoutMs = 4000 }: { timeoutMs?: number } = {},
+  { timeoutMs = 12000, enabled = true }: { timeoutMs?: number; enabled?: boolean } = {},
 ): AdFillStatus {
   const [status, setStatus] = useState<AdFillStatus>("pending");
 
   useEffect(() => {
+    if (!enabled) return;
     const el = insRef.current;
     if (!el) return;
 
@@ -38,9 +41,7 @@ export function useAdFillStatus(
       return false;
     };
 
-    // Status may already be set (e.g. fast synchronous response, or a
-    // remount after the attribute landed).
-    if (readStatus()) return;
+    readStatus();
 
     const observer = new MutationObserver(() => {
       readStatus();
@@ -55,7 +56,7 @@ export function useAdFillStatus(
       observer.disconnect();
       window.clearTimeout(timeout);
     };
-  }, [insRef, timeoutMs]);
+  }, [insRef, timeoutMs, enabled]);
 
   return status;
 }

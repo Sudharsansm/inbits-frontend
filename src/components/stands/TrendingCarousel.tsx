@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@/lib/api";
 import { useArticleViewer } from "@/lib/articleViewer";
-import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
+import { ADSENSE_CLIENT, useAdUnit } from "@/components/ads/AdSlot";
 import { useTranslatedById } from "@/lib/i18n";
 
 /**
@@ -23,17 +23,15 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
   const { openArticle } = useArticleViewer();
   const slides = [...items].sort((a, b) => b.readTime - a.readTime).slice(0, 5);
   const titles = useTranslatedById(slides.map((s) => ({ id: s.id, text: s.title })));
-  // Decided after mount so server and client render the same HTML
-  // (isAdSenseConfigured depends on window.location).
-  const [adEnabled, setAdEnabled] = useState(false);
-  useEffect(() => {
-    setAdEnabled(isAdSenseConfigured(TRENDING_AD_SLOT));
-  }, []);
-  const slideCount = slides.length + (slides.length > 0 && adEnabled ? 1 : 0);
+  // The ad request is made as soon as the carousel mounts (not when the
+  // slide comes around) so we know early whether it filled. The slide only
+  // joins the rotation, and its dot only appears, once AdSense says
+  // "filled" — otherwise the carousel would auto-rotate onto a blank slide.
+  const { insRef: adInsRef, enabled: adEnabled, status: adStatus } = useAdUnit(TRENDING_AD_SLOT);
+  const adFilled = adStatus === "filled";
+  const slideCount = slides.length + (slides.length > 0 && adFilled ? 1 : 0);
   const [i, setI] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
-  const adInsRef = useRef<HTMLModElement>(null);
-  const adPushed = useRef(false);
 
   useEffect(() => {
     if (slideCount === 0) return;
@@ -45,18 +43,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
     const el = scroller.current;
     if (!el) return;
     el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
-    // The ad slide only mounts once its turn comes around — push it into
-    // AdSense's queue the first time that happens rather than on mount,
-    // so a slide nobody scrolls to never requests an impression.
-    if (adEnabled && i === slides.length && !adPushed.current && adInsRef.current) {
-      try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-        adPushed.current = true;
-      } catch (error) {
-        console.error("AdSense push failed", error);
-      }
-    }
-  }, [i, slides.length, adEnabled]);
+  }, [i]);
 
   if (slides.length === 0) return null;
 
@@ -99,14 +86,20 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
           </button>
         ))}
 
-        {adEnabled && (
-          <div className="relative flex h-52 w-full flex-none snap-center items-center justify-center overflow-hidden rounded-2xl border border-border bg-card">
-            <span className="absolute left-3 top-3 rounded bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-primary-foreground">
+        {adEnabled === true && (
+          <div
+            className={
+              adStatus === "unfilled"
+                ? "hidden"
+                : "relative flex h-52 w-full flex-none snap-center items-center justify-center overflow-hidden rounded-2xl border border-border bg-card"
+            }
+          >
+            <span className="absolute left-3 top-3 z-10 rounded bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-primary-foreground">
               Sponsored
             </span>
             <ins
               ref={adInsRef}
-              className="adsbygoogle block w-full px-4"
+              className="adsbygoogle block w-full px-4 pt-6"
               style={{ display: "block" }}
               data-ad-client={ADSENSE_CLIENT}
               data-ad-slot={TRENDING_AD_SLOT}
@@ -125,7 +118,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
             className={`h-1.5 rounded-full transition-all ${idx === i ? "w-5 bg-primary" : "w-1.5 bg-border"}`}
           />
         ))}
-        {adEnabled && (
+        {adFilled && (
           <button
             aria-label="Go to sponsored slide"
             onClick={() => setI(slides.length)}
