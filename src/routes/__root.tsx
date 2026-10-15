@@ -158,13 +158,17 @@ function RootComponent() {
     // lib but not guaranteed at runtime (Safari/older browsers don't
     // implement it), so it's typed as optional instead of cast away.
     type IdleWindow = Window & {
-      requestIdleCallback?: (cb: () => void) => number;
+      requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
       cancelIdleCallback?: (id: number) => void;
     };
     const win = window as IdleWindow;
     const hasIdle = typeof win.requestIdleCallback === "function";
     const idleId: number = hasIdle
-      ? win.requestIdleCallback!(loadAds)
+      ? // FIX: without a timeout, requestIdleCallback may never fire on a
+        // page that is never idle (live feed, socket, animations), so the
+        // AdSense script -- and therefore every ad -- never loaded. The
+        // timeout guarantees it loads within 3s regardless.
+        win.requestIdleCallback!(loadAds, { timeout: 3000 })
       : window.setTimeout(loadAds, 2000);
 
     return () => {

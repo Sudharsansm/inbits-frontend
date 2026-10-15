@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import { Loader2, WifiOff } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -32,7 +33,8 @@ import { JournalRail } from "@/components/home/JournalRail";
 import { ChannelsRail } from "@/components/home/ChannelsRail";
 import { JobsRail } from "@/components/home/JobsRail";
 import { RecommendedRail } from "@/components/home/RecommendedRail";
-import { NativeHomeAd } from "@/components/ads/NativeHomeAd";
+import { InFeedAd } from "@/components/ads/InFeedAd";
+import { adOrdinalAfter } from "@/lib/inFeedAds";
 
 // FIX: with router-level scrollRestoration now off (see router.tsx), Home
 // has to remember its own window scroll position across a route unmount
@@ -483,14 +485,16 @@ function Home() {
             No stories yet — check back in a moment.
           </p>
         )}
-        {feedPool.map((item, index) => {
+        {feedPool.flatMap((item, index) => {
           const slot = index % 8;
-          // Ad cadence is intentionally independent of the rail rotation
-          // above -- change the "4" here to show the ad more or less
-          // often (every Nth post), without affecting how often Stands /
-          // Journal / Channels / Recommended / Jobs show up.
-          const showAd = index > 0 && index % 4 === 0;
-          return (
+          // In-feed ad cadence lives in lib/inFeedAds.ts (one ad after
+          // every 5 organic posts, never last) and is independent of the
+          // 8-post rail rotation below. flatMap (not map) so each ad is
+          // a direct, keyed child of the feed <section>: its key is its
+          // ordinal, so the same <ins> survives prepends/filtering and
+          // is never re-requested or duplicated when the feed updates.
+          const adOrdinal = adOrdinalAfter(index, feedPool.length);
+          const nodes: ReactNode[] = [
             <Fragment key={item.id}>
               {/* FIX: only the first card is above the fold on a cold
                   open -- that's the one whose image should load eagerly
@@ -520,16 +524,15 @@ function Home() {
               </div>
               {slot === 1 && <StandsRail showcase={showcase} />}
               {slot === 3 && <JournalRail journal={journal} />}
-              {/* One AdSense unit per 8-post cycle — same cadence as the
-                  other rails, so it reads as part of the feed's normal
-                  rhythm rather than an interruption. Swap the slot ID for
-                  the ad unit you create in the AdSense dashboard. */}
-              {slot === 4 && <NativeHomeAd slot="6413880979" />}
               {slot === 5 && <ChannelsRail channels={channels} />}
               {slot === 6 && <RecommendedRail picks={recommended} />}
               {slot === 7 && <JobsRail />}
-            </Fragment>
-          );
+            </Fragment>,
+          ];
+          if (adOrdinal !== null) {
+            nodes.push(<InFeedAd key={`in-feed-ad-${adOrdinal}`} />);
+          }
+          return nodes;
         })}
       </section>
 
