@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { fetchJobs } from "@/lib/api";
 import { useToggleSet } from "@/hooks/usePrefs";
@@ -7,6 +7,7 @@ import { FeaturedJob } from "@/components/jobs/FeaturedJob";
 import { JobCard } from "@/components/jobs/JobCard";
 import { EMPTY_JOB_FILTERS, JobFilters, applyJobFilters } from "@/components/jobs/JobFilters";
 import { ExternalJobBoards } from "@/components/jobs/ExternalJobBoards";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/jobs")({
   head: () => ({
@@ -80,8 +81,23 @@ function Jobs() {
           </p>
         ) : (
           <ul className="mt-3 space-y-3">
-            {rest.map((j) => (
-              <JobCard key={j.id} job={j} saved={has(j.id)} onToggleSave={() => toggle(j.id)} />
+            {rest.map((j, idx) => (
+              <Fragment key={j.id}>
+                {/* One ad per 4-listing cycle — same card list rhythm as
+                    the Stands channel/journal lists. Reuses the "Search
+                    discover grid" unit since both are vertical lists of
+                    result cards; create a dedicated "Jobs list" unit in
+                    AdSense later and swap the slot ID here if you want
+                    separate performance reporting for this surface.
+                    Wrapped in its own <li> — AdSlot's root is a <div>,
+                    and this list's children must all be <li> elements. */}
+                {idx > 0 && idx % 4 === 0 && (
+                  <li className="list-none">
+                    <AdSlot slot="6051024090" label="Sponsored" />
+                  </li>
+                )}
+                <JobCard job={j} saved={has(j.id)} onToggleSave={() => toggle(j.id)} />
+              </Fragment>
             ))}
           </ul>
         )}

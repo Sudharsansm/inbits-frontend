@@ -21,7 +21,18 @@ import { useAdFillStatus } from "@/hooks/useAdFillStatus";
 export function NativeHomeAd({ slot }: { slot: string }) {
   const insRef = useRef<HTMLModElement>(null);
   const pushed = useRef(false);
-  const status = useAdFillStatus(insRef);
+  // FIX: the home feed has a lot more happening at the moment this card
+  // mounts than a simple page does — the live feed is still hydrating,
+  // the WebSocket connection is spinning up, and two rail components
+  // (Stands/Journal) are rendering around it. On a slow connection or a
+  // mid-range phone that competition for the main thread can easily push
+  // AdSense's response past the hook's default 4s window, so the ad got
+  // marked "unfilled" and hidden before Google had actually answered —
+  // even though the exact same ad unit works fine on simpler pages
+  // (Updates, Channel, Article) that don't have that startup cost. A
+  // longer, feed-specific grace period fixes that without touching the
+  // simpler pages that never needed it.
+  const status = useAdFillStatus(insRef, { timeoutMs: 8000 });
 
   useEffect(() => {
     if (pushed.current || !insRef.current) return;
@@ -36,6 +47,19 @@ export function NativeHomeAd({ slot }: { slot: string }) {
       console.error("AdSense push failed", error);
     }
   }, [slot]);
+
+  // DEBUG: logs once the slot resolves, so you can see in the console
+  // whether AdSense actually filled it ("filled"), explicitly declined
+  // ("unfilled" — check the ad unit's status/type in the AdSense
+  // dashboard), or never responded at all before the timeout above
+  // (still "unfilled", but paired with no adsbygoogle.js request in the
+  // Network tab — a script-loading problem instead). Safe to delete once
+  // you've confirmed which case this is.
+  useEffect(() => {
+    if (status !== "pending") {
+      console.info(`[NativeHomeAd] slot ${slot} resolved to: ${status}`);
+    }
+  }, [status, slot]);
 
   // Not a real, configured ad placement — render nothing instead of
   // reserving space for a request we know we didn't make.

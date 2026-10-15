@@ -5,6 +5,7 @@ import { groupShowcaseFromFeed } from "@/lib/liveGroups";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { ArrowLeft, MoreVertical } from "lucide-react";
 import { useTranslatedById } from "@/lib/i18n";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/stands/showcase")({
   head: () => ({
@@ -60,9 +61,14 @@ function ShowcasePage() {
           </p>
         ) : (
           <div className="space-y-4 pb-6">
-            {showcase.map((panel) => (
+            {showcase.map((panel, idx) => (
+              <div key={panel.id}>
+                {/* One ad per 4-panel cycle, same cadence as the other
+                    Stands card lists. Reuses the "Stands journal" unit;
+                    swap for a dedicated unit if you want this page's
+                    performance tracked separately in AdSense. */}
+                {idx > 0 && idx % 4 === 0 && <AdSlot slot="1589034906" label="Sponsored" />}
               <article
-                key={panel.id}
                 className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
               >
                 <div className="flex items-center gap-2 px-4 py-3">
@@ -123,6 +129,7 @@ function ShowcasePage() {
                   </button>
                 </div>
               </article>
+              </div>
             ))}
           </div>
         )}

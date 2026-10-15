@@ -5,6 +5,7 @@ import { fetchJob } from "@/lib/api";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { useToggleSet } from "@/hooks/usePrefs";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const Route = createFileRoute("/job/$id")({
   loader: async ({ params }) => {
@@ -136,6 +137,14 @@ function JobPage() {
             </ul>
           </div>
         </section>
+
+        {/* Advertisement — reuses the "Article bottom" unit since this
+            detail page has the same single-article shape as a post page.
+            Create a dedicated "Job detail" unit later if you want to
+            track this surface separately in AdSense. */}
+        <div className="mt-8">
+          <AdSlot slot="4019651928" label="Sponsored" />
+        </div>
 
         <div className="py-10 text-center text-[11px] text-muted-foreground">
           — End of listing —

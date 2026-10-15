@@ -1,8 +1,10 @@
+import { Fragment } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, MoreVertical } from "lucide-react";
 import type { JournalCategory, ShowcasePanel } from "@/lib/content";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { useTranslatedById } from "@/lib/i18n";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export function StandsTab({
   showcase,
@@ -37,9 +39,9 @@ export function StandsTab({
         {showcase.length === 0 && (
           <p className="px-4 py-6 text-xs text-muted-foreground">Fetching the latest stories…</p>
         )}
-        {showcase.map((panel) => (
+        {showcase.map((panel, idx) => (
+          <Fragment key={panel.id}>
           <article
-            key={panel.id}
             className="w-full max-w-[340px] flex-none snap-center overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
           >
             <div className="flex items-center gap-2 px-4 py-3">
@@ -100,6 +102,19 @@ export function StandsTab({
               </button>
             </div>
           </article>
+          {/* One sponsored card after the 2nd showcase panel — same
+              340px card shape as a real panel so it holds its place in
+              the snap-scroll rhythm instead of breaking it. Reuses the
+              "Stands channels" unit; create a dedicated "Stands showcase"
+              unit later if you want separate reporting for this slot. */}
+          {idx === 1 && showcase.length > 2 && (
+            <AdSlot
+              slot="8888835229"
+              label="Sponsored"
+              className="w-full max-w-[340px] flex-none snap-center"
+            />
+          )}
+          </Fragment>
         ))}
       </div>
 

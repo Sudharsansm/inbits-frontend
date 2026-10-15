@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { fetchFeed, fetchJobs, type FeedItem, type RemoteJob } from "@/lib/api";
 import { RelativeTime } from "@/components/common/RelativeTime";
 import { Briefcase, Newspaper } from "lucide-react";
 import { useTranslatedById } from "@/lib/i18n";
+import { NotificationAd } from "@/components/ads/NotificationAd";
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({
@@ -98,22 +99,30 @@ function NotificationsPage() {
         <p className="px-4 py-10 text-center text-sm text-muted-foreground">Nothing here yet.</p>
       ) : (
         <ul className="divide-y divide-border px-4">
-          {filtered.map((n) => {
+          {filtered.map((n, idx) => {
             const Icon = n.icon;
             return (
-              <li key={`${n.kind}-${n.id}`}>
-                <Link {...n.link} className="flex items-start gap-3 py-4 active:bg-secondary/50">
-                  <div className="grid h-10 w-10 flex-none place-items-center rounded-full bg-secondary text-primary">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-snug">{n.text}</p>
-                    <span className="text-[11px] text-muted-foreground">
-                      <RelativeTime iso={n.time} />
-                    </span>
-                  </div>
-                </Link>
-              </li>
+              <Fragment key={`${n.kind}-${n.id}`}>
+                {/* One sponsored row per 8-notification cycle — same
+                    density as a real row, see NotificationAd. */}
+                {idx > 0 && idx % 8 === 0 && <NotificationAd />}
+                <li>
+                  <Link
+                    {...n.link}
+                    className="flex items-start gap-3 py-4 active:bg-secondary/50"
+                  >
+                    <div className="grid h-10 w-10 flex-none place-items-center rounded-full bg-secondary text-primary">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm leading-snug">{n.text}</p>
+                      <span className="text-[11px] text-muted-foreground">
+                        <RelativeTime iso={n.time} />
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              </Fragment>
             );
           })}
         </ul>
