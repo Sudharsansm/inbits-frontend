@@ -8,14 +8,28 @@ import { useAdFillStatus } from "@/hooks/useAdFillStatus";
  * CONFIG (all optional -- the defaults are the values already in this repo)
  * ------------------------------------------------------------------
  *  VITE_ADSENSE_HOME_SLOT        numeric ad-unit ID of the home in-feed unit
- *  VITE_ADSENSE_HOME_LAYOUT_KEY  the `data-ad-layout-key` from the unit's
- *                                code snippet (AdSense > Ads > By ad unit >
- *                                your In-feed unit > Get code). Only
- *                                in-feed units have one. When set, the
- *                                unit is requested as `fluid` (Google's
- *                                official in-feed markup); when unset it
- *                                is requested as a responsive display
- *                                unit (`auto`).
+ *  VITE_ADSENSE_HOME_FORMAT      "fluid" (default) | "auto"
+ *                                  fluid = Google's NATIVE in-feed creative:
+ *                                  advertiser logo + name, "Sponsored", the
+ *                                  (⋮) ad menu, a large image, a headline and
+ *                                  the heart / share row -- the Instagram-
+ *                                  style card. auto = a plain responsive
+ *                                  display banner (the old look).
+ *  VITE_ADSENSE_HOME_LAYOUT_KEY  optional `data-ad-layout-key` from the
+ *                                unit's snippet (AdSense > Ads > By ad unit >
+ *                                your In-feed unit > Get code). Only used
+ *                                with fluid. Leave unset if the unit works
+ *                                without it.
+ *
+ * What we control and what Google controls
+ * ----------------------------------------
+ * Everything INSIDE the card -- logo, advertiser name, the "Sponsored"
+ * tag, the ⋮ menu, the image, the headline and the heart/share icons -- is
+ * drawn by Google in its own iframe, from the advertiser's creative. It
+ * cannot be restyled or re-created from here (and must not be: ads may not
+ * be modified or imitated). What this component controls is the FRAME
+ * around it: full-bleed, flat, the same separators/background as a post
+ * card, no extra chrome, right width, no layout shift.
  *
  * The publisher ID stays in one place: ADSENSE_CLIENT in AdSlot.tsx (it
  * must match public/ads.txt and the loader in routes/__root.tsx).
@@ -26,52 +40,56 @@ import { useAdFillStatus } from "@/hooks/useAdFillStatus";
  */
 const DEFAULT_HOME_SLOT = "6413880979";
 const HOME_SLOT = (import.meta.env.VITE_ADSENSE_HOME_SLOT as string | undefined)?.trim();
+const HOME_FORMAT: InFeedAdFormat =
+  (import.meta.env.VITE_ADSENSE_HOME_FORMAT as string | undefined)?.trim() === "auto"
+    ? "auto"
+    : "fluid";
 const HOME_LAYOUT_KEY = (
   import.meta.env.VITE_ADSENSE_HOME_LAYOUT_KEY as string | undefined
 )?.trim();
+
+export type InFeedAdFormat = "fluid" | "auto";
 
 /** Start the ad request when the card is this close to the viewport. */
 const REQUEST_MARGIN = "400px 0px";
 
 /**
- * Sponsored card for the home feed. Replaces NativeHomeAd.
+ * Sponsored card for the home feed.
  *
- * Why this is a separate component from the old NativeHomeAd (see the
- * root-cause notes that came with this change):
+ *  - fluid (default): a flush, edge-to-edge native card that looks like the
+ *    posts around it -- same `w-full border-b border-border bg-paper` frame
+ *    as PostCard, nothing added on top of Google's own creative. Google's
+ *    creative already carries the "Sponsored" label and the (⋮) ad menu,
+ *    so no second header is stacked on it. The card also carries an
+ *    aria-label="Advertisement" for screen readers.
+ *  - auto: a display banner, shown under our own "Sponsored /
+ *    Advertisement" header (a plain banner has no label of its own).
  *
- *  1. No `feed-card` class. That class applies `content-visibility: auto`
- *     (styles.css), which makes the browser skip layout for off-screen
- *     cards -- so the <ins> measured 0px wide when the request was made
- *     and AdSense had nothing to size an ad into. (An earlier version of
- *     NativeHomeAd documented exactly this; the warning was lost when the
- *     file was rewritten.)
- *  2. It never unmounts the <ins>. The old version returned `null` as soon
- *     as the fill-status timer expired, throwing away a request that
- *     might still have been answered. Here the <ins> stays mounted and
- *     the card is only collapsed (zero height) until Google reports
- *     `data-ad-status="filled"`, so a slow response can still appear and
- *     an unfilled slot leaves no empty box.
- *  3. Enabled only after mount (same pattern as TrendingCarousel).
- *     isAdSenseConfigured() depends on window.location, so on the server
- *     it is false and on the client true; rendering the card straight
- *     away made server HTML and first client render disagree (a
- *     hydration mismatch on the page's main feed).
+ * Why it is its own component (see the root-cause notes):
+ *  1. No `feed-card` class: that class applies `content-visibility: auto`,
+ *     which made the <ins> measure 0px wide at request time.
+ *  2. The <ins> is never unmounted by a timeout; the card is only collapsed
+ *     (zero height, still full width) until Google reports `filled`, so a
+ *     slow response can still appear and an unfilled slot leaves no gap.
+ *  3. Enabled only after mount (isAdSenseConfigured reads window.location),
+ *     so server and client render the same HTML.
  *  4. One request per mounted <ins>, made when the card is near the
- *     viewport -- not for ads 40 posts down that are never scrolled to.
- *     No retry loop.
+ *     viewport; no retry loop.
  *
- * The "Sponsored" / "Advertisement" disclosure is always visible
- * whenever the card is shown. There is deliberately no like/save/share
- * row: those feed the interest profile and saved-posts list, and ads
- * must not skew either.
+ * There is deliberately no like/save/share row of our own: Google's native
+ * creative already includes one, and ours would feed the interest profile
+ * and saved-posts list with ads.
  */
 export function InFeedAd({
   slot = HOME_SLOT || DEFAULT_HOME_SLOT,
+  format = HOME_FORMAT,
   layoutKey = HOME_LAYOUT_KEY,
 }: {
   /** Numeric ad-unit ID from the AdSense dashboard. */
   slot?: string;
-  /** `data-ad-layout-key` of an In-feed unit; omit for a display unit. */
+  /** "fluid" = native Instagram-style card; "auto" = display banner. */
+  format?: InFeedAdFormat;
+  /** `data-ad-layout-key` of an In-feed unit (fluid only). */
   layoutKey?: string;
 }) {
   const [enabled, setEnabled] = useState(false);
@@ -80,10 +98,18 @@ export function InFeedAd({
   }, [slot]);
 
   if (!enabled) return null;
-  return <InFeedAdUnit slot={slot} layoutKey={layoutKey || undefined} />;
+  return <InFeedAdUnit slot={slot} format={format} layoutKey={layoutKey || undefined} />;
 }
 
-function InFeedAdUnit({ slot, layoutKey }: { slot: string; layoutKey?: string }) {
+function InFeedAdUnit({
+  slot,
+  format,
+  layoutKey,
+}: {
+  slot: string;
+  format: InFeedAdFormat;
+  layoutKey?: string;
+}) {
   const cardRef = useRef<HTMLElement>(null);
   const insRef = useRef<HTMLModElement>(null);
   // Guards React StrictMode's dev double-effect and any re-run: this
@@ -91,6 +117,7 @@ function InFeedAdUnit({ slot, layoutKey }: { slot: string; layoutKey?: string })
   const requested = useRef(false);
   const status = useAdFillStatus(insRef, { timeoutMs: 8000 });
   const filled = status === "filled";
+  const native = format === "fluid";
 
   useEffect(() => {
     const card = cardRef.current;
@@ -127,8 +154,10 @@ function InFeedAdUnit({ slot, layoutKey }: { slot: string; layoutKey?: string })
   }, []);
 
   useEffect(() => {
-    if (status !== "pending") console.debug(`[InFeedAd] slot ${slot} status: ${status}`);
-  }, [status, slot]);
+    if (status !== "pending") {
+      console.debug(`[InFeedAd] slot ${slot} (${format}) status: ${status}`);
+    }
+  }, [status, slot, format]);
 
   return (
     <article
@@ -141,29 +170,37 @@ function InFeedAdUnit({ slot, layoutKey }: { slot: string; layoutKey?: string })
           : "pointer-events-none h-0 w-full overflow-hidden opacity-0"
       }
     >
-      <header className="flex items-center gap-2.5 px-3 py-2.5">
-        <div className="grid h-9 w-9 flex-none place-items-center rounded-full bg-secondary text-muted-foreground">
-          <Megaphone className="h-4 w-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold leading-tight">Sponsored</div>
-          <div className="text-[10px] text-muted-foreground">Advertisement</div>
-        </div>
-      </header>
+      {/* Plain banners have no label of their own, so ours stays. Native
+          (fluid) creatives bring "Sponsored" + the ad menu themselves. */}
+      {!native && (
+        <header className="flex items-center gap-2.5 px-3 py-2.5">
+          <div className="grid h-9 w-9 flex-none place-items-center rounded-full bg-secondary text-muted-foreground">
+            <Megaphone className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold leading-tight">Sponsored</div>
+            <div className="text-[10px] text-muted-foreground">Advertisement</div>
+          </div>
+        </header>
+      )}
 
-      {/* overflow-hidden: responsive units can try to widen themselves
-          past their container on narrow screens; clip instead of letting
-          the page scroll sideways. No fixed height: Google sizes the unit. */}
-      <div className="w-full overflow-hidden px-3 pb-3">
+      {/* Native: no padding at all -- the creative supplies its own inner
+          padding and runs edge to edge like a post. overflow-hidden: clip
+          rather than let a creative widen the page. No fixed height:
+          Google sizes the unit. */}
+      <div className={native ? "w-full overflow-hidden" : "w-full overflow-hidden px-3 pb-3"}>
         <ins
           ref={insRef}
           className="adsbygoogle block w-full"
           style={{ display: "block", minWidth: 250 }}
           data-ad-client={ADSENSE_CLIENT}
           data-ad-slot={slot}
-          {...(layoutKey
-            ? { "data-ad-format": "fluid", "data-ad-layout-key": layoutKey }
-            : { "data-ad-format": "auto", "data-full-width-responsive": "true" })}
+          data-ad-format={format}
+          {...(native
+            ? layoutKey
+              ? { "data-ad-layout-key": layoutKey }
+              : {}
+            : { "data-full-width-responsive": "true" })}
         />
       </div>
     </article>
