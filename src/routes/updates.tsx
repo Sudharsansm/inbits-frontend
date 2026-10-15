@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { Loader2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -25,6 +25,7 @@ import { hasImage } from "@/lib/postImage";
 import { useInterestProfile } from "@/lib/interests";
 import { UpdateReel } from "@/components/updates/UpdateReel";
 import { AdReel } from "@/components/ads/AdReel";
+import type { AdFillStatus } from "@/hooks/useAdFillStatus";
 import { ShareSheet } from "@/components/updates/ShareSheet";
 
 export const Route = createFileRoute("/updates")({
@@ -59,38 +60,37 @@ export const Route = createFileRoute("/updates")({
 // article and coming back would always drop you back at reel #1.
 let savedScrollTop = 0;
 
+/** One ad reel before every Nth reel (so N organic reels sit between ads). */
+const AD_EVERY = 4;
+
 /**
- * Ad slots are placed several reels down (see `idx % 4 === 0` below), so
- * they're never the first thing on screen — but `posts.map` still renders
- * every slot in the DOM up front, and `AdReel` fires its AdSense request
- * the instant it mounts. Without this wrapper, opening the page would
- * request/paint every ad slot immediately, which is what made it look
- * like an ad was "showing" right when the page opened even though it
- * wasn't the visible reel yet.
+ * Wrapper that owns an ad's slot in the snap-scroll list.
  *
- * This defers mounting the real `AdReel` until its slot actually scrolls
- * close to view — i.e. only once the reader is scrolling toward it — by
- * watching an empty placeholder (same full-reel size, so the snap-scroll
- * rhythm and reel count don't shift) with an IntersectionObserver rooted
- * on the reel list itself. `rootMargin: "200% 0px"` means loading starts
- * about two screens before the slot is reached, giving the ad network
- * time to resolve before the reader actually arrives. The fade-in on
- * mount is a second line of defense for the rare case where the response
- * is still late despite the extra lead time.
+ * - Lazy: the real `AdReel` is only mounted once its position scrolls
+ *   within ~2 screens of view (IntersectionObserver rooted on the reel
+ *   list), so opening the page doesn't request every ad at once.
+ * - Collapsed until filled: while the request is pending (and if it
+ *   never fills) the slot has zero height, so the reader never lands on
+ *   a blank full-screen "Sponsored" card. It keeps its width, which is
+ *   all AdSense needs to size a vertical unit. Once Google reports
+ *   `filled` it becomes a normal full-height snap reel.
+ * - Never unmounts the <ins> because of a timeout (the old version did,
+ *   so a slow response was thrown away); a late fill still appears.
+ *
+ * Must stay a direct child of the scroll container (CSS scroll-snap
+ * only applies to direct children).
  */
 function LazyAdReel({
   slot,
   scrollRootRef,
 }: {
-  slot: string;
+  slot?: string;
   scrollRootRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const placeholderRef = useRef<HTMLDivElement>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
-  // Once AdSense tells us this slot got no fill, drop the wrapper too —
-  // otherwise the reel list keeps a blank full-screen snap section where
-  // the ad would have been.
-  const [unfilled, setUnfilled] = useState(false);
+  const [status, setStatus] = useState<AdFillStatus>("pending");
+  const onStatusChange = useCallback((next: AdFillStatus) => setStatus(next), []);
 
   useEffect(() => {
     if (shouldLoad) return;
@@ -109,24 +109,24 @@ function LazyAdReel({
     return () => io.disconnect();
   }, [scrollRootRef, shouldLoad]);
 
-  if (unfilled) return null;
+  if (!shouldLoad) return <div ref={placeholderRef} className="h-0 w-full" />;
 
-  if (shouldLoad) {
-    // Same footprint as a real reel/ad so the scroll list's height and
-    // snap points don't jump once the real ad swaps in.
-    return (
-      <div className="ad-fade-in h-full w-full snap-start snap-always">
-        <AdReel
-          slot={slot}
-          onStatusChange={(status) => {
-            if (status === "unfilled") setUnfilled(true);
-          }}
-        />
-      </div>
-    );
-  }
-
-  return <div ref={placeholderRef} className="h-full w-full snap-start snap-always" />;
+  return (
+    <div
+      aria-hidden={status !== "filled"}
+      className={
+        status === "filled"
+          ? "ad-fade-in h-full w-full snap-start snap-always"
+          : "pointer-events-none h-0 w-full overflow-hidden opacity-0"
+      }
+    >
+      <AdReel
+        slot={slot}
+        frameHeight={scrollRootRef.current?.clientHeight}
+        onStatusChange={onStatusChange}
+      />
+    </div>
+  );
 }
 
 function Updates() {
@@ -452,53 +452,54 @@ function Updates() {
           />
         </div>
 
-        {posts.map((p, idx) => {
+        {posts.flatMap((p, idx) => {
           const isLiked = liked[p.id];
           const isSaved = isSavedId(p.id);
           const burstKey = burst[p.id] ?? 0;
-          return (
-            <Fragment key={p.id}>
-              {/* One ad reel every 4 real reels. Never on idx 0 (so the
-                  page never opens on an ad), and lazily mounted (see
-                  LazyAdReel above) so it doesn't request/show anything
-                  until the reader actually scrolls toward it.
-                  NOTE: this must be a Fragment, not a wrapping <div> — the
-                  scroll container below uses CSS scroll-snap
-                  (snap-y snap-mandatory), which only applies to its
-                  *direct* children. A wrapping div here would nest the ad
-                  slot and the reel card one level too deep and silently
-                  break snap-scrolling for every reel. */}
-              {idx > 0 && idx % 4 === 0 && (
-                <LazyAdReel slot="7451735677" scrollRootRef={scrollRef} />
-              )}
-              <div
-                data-post-id={p.id}
-                ref={(el) => {
-                  if (el) reelRefs.current.set(p.id, el);
-                  else reelRefs.current.delete(p.id);
+          // One ad reel before every 4th reel -- never before the first
+          // (the page never opens on an ad), so there are always
+          // AD_EVERY organic reels between two ads and always a reel
+          // after an ad. flatMap, not a wrapping element: ads and reels
+          // must both be *direct* children of the scroll container for
+          // CSS scroll-snap (snap-y snap-mandatory) to apply to them.
+          // The ad's key is its ordinal, not a post id, so it keeps its
+          // identity (and is not re-requested) when new reels are
+          // prepended on refresh.
+          const adOrdinal = idx > 0 && idx % AD_EVERY === 0 ? idx / AD_EVERY : null;
+          const nodes: ReactNode[] = [];
+          if (adOrdinal !== null) {
+            nodes.push(<LazyAdReel key={`reel-ad-${adOrdinal}`} scrollRootRef={scrollRef} />);
+          }
+          nodes.push(
+            <div
+              key={p.id}
+              data-post-id={p.id}
+              ref={(el) => {
+                if (el) reelRefs.current.set(p.id, el);
+                else reelRefs.current.delete(p.id);
+              }}
+              className="reel-card h-full w-full snap-start snap-always"
+            >
+              <UpdateReel
+                post={p}
+                isLiked={isLiked}
+                isSaved={isSaved}
+                burstKey={burstKey}
+                active={activeId === p.id}
+                muted={muted}
+                onDoubleTap={() => handleDoubleTap(p.id)}
+                onToggleLike={() => toggleLike(p.id)}
+                onToggleSave={() => {
+                  toggleSave(p.id);
+                  setToast(isSaved ? "Removed from saved" : "Saved");
                 }}
-                className="reel-card h-full w-full snap-start snap-always"
-              >
-                <UpdateReel
-                  post={p}
-                  isLiked={isLiked}
-                  isSaved={isSaved}
-                  burstKey={burstKey}
-                  active={activeId === p.id}
-                  muted={muted}
-                  onDoubleTap={() => handleDoubleTap(p.id)}
-                  onToggleLike={() => toggleLike(p.id)}
-                  onToggleSave={() => {
-                    toggleSave(p.id);
-                    setToast(isSaved ? "Removed from saved" : "Saved");
-                  }}
-                  onShare={() => setShareFor(p.id)}
-                  onToggleMute={() => setMuted(!muted)}
-                  onImageUnavailable={() => markImageBroken(p.id)}
-                />
-              </div>
-            </Fragment>
+                onShare={() => setShareFor(p.id)}
+                onToggleMute={() => setMuted(!muted)}
+                onImageUnavailable={() => markImageBroken(p.id)}
+              />
+            </div>,
           );
+          return nodes;
         })}
 
         <div
