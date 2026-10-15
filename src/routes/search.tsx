@@ -178,10 +178,13 @@ function SearchPage() {
             <>
               {discover.map((s, idx) => (
                 <Fragment key={s.id}>
+                  {/* The grid is two ~170px columns -- too narrow for a
+                      horizontal ad -- so the ad spans both columns
+                      (column-span: all). AdSlot is a direct child (no
+                      wrapper) so that, while it is empty / collapsed, it
+                      is out of flow and doesn't split the masonry. */}
                   {idx > 0 && idx % 7 === 0 && (
-                    <div className="mb-2 break-inside-avoid">
-                      <AdSlot slot="6051024090" />
-                    </div>
+                    <AdSlot slot="6051024090" className="[column-span:all]" />
                   )}
                   <DiscoverCard item={s} />
                 </Fragment>

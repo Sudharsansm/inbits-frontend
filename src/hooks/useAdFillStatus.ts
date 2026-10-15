@@ -21,7 +21,15 @@ export type AdFillStatus = "pending" | "filled" | "unfilled";
  */
 export function useAdFillStatus(
   insRef: RefObject<HTMLModElement | null>,
-  { timeoutMs = 4000 }: { timeoutMs?: number } = {},
+  {
+    timeoutMs = 4000,
+    // When false the "no fill" timer does not run yet (the status stays
+    // "pending"). For slots whose request is made later than mount --
+    // e.g. a carousel slide that only requests once it is shown -- so the
+    // timer measures time since the request, not since the component
+    // mounted. Defaults to true: existing callers are unchanged.
+    armed = true,
+  }: { timeoutMs?: number; armed?: boolean } = {},
 ): AdFillStatus {
   const [status, setStatus] = useState<AdFillStatus>("pending");
 
@@ -47,6 +55,8 @@ export function useAdFillStatus(
     });
     observer.observe(el, { attributes: true, attributeFilter: ["data-ad-status"] });
 
+    if (!armed) return () => observer.disconnect();
+
     const timeout = window.setTimeout(() => {
       setStatus((current) => (current === "pending" ? "unfilled" : current));
     }, timeoutMs);
@@ -55,7 +65,7 @@ export function useAdFillStatus(
       observer.disconnect();
       window.clearTimeout(timeout);
     };
-  }, [insRef, timeoutMs]);
+  }, [insRef, timeoutMs, armed]);
 
   return status;
 }

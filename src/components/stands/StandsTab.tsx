@@ -111,6 +111,9 @@ export function StandsTab({
             <AdSlot
               slot="8888835229"
               label="Sponsored"
+              // Card-shaped slot in a sideways-scrolling row -- keep the
+              // responsive "auto" shape here, not the horizontal banner.
+              format="auto"
               className="w-full max-w-[340px] flex-none snap-center"
             />
           )}

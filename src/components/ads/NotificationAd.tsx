@@ -1,69 +1,72 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
-import { useAdFillStatus } from "@/hooks/useAdFillStatus";
+import { COLLAPSED_CLASS, useAdUnit } from "@/components/ads/useAdUnit";
 
 /**
- * A single sponsored row for the Notifications list. Matches the exact
- * row shape every real notification uses — round icon, one line of text,
- * a timestamp slot — so it sits in the list at the same density instead
- * of dropping in a tall card between slim rows. The "Sponsored" label
- * takes the spot the relative-time stamp normally occupies, since that's
- * the one piece a real row always has and an ad never can (AdSense
- * requires the sponsored label to be at least as prominent as it would
- * be in that position).
+ * A sponsored row for the Notifications list, showing a *horizontal*
+ * banner-style creative (320x100 on a phone) at the full width of the
+ * list, under a one-line header that matches the density of a real
+ * notification row: small megaphone icon + "Sponsored" on the left,
+ * "Advertisement" on the right (where a real row has its timestamp).
  *
- * Reuses the "Home feed native" unit (6413880979) — both are small
- * in-stream native placements. Create a dedicated "Notifications" unit
- * later if you want this surface's fill rate reported separately.
+ * Previously this asked for `fluid` + `in-article`, which is only valid
+ * for an In-article / In-feed unit with a layout key; on a normal Display
+ * unit that returns nothing. It now requests `horizontal`, which needs a
+ * responsive Display unit.
+ *
+ * Request / collapse behaviour lives in useAdUnit: one request near the
+ * viewport, and the <li> stays out of the list (no divider line, no gap)
+ * until Google reports the ad as filled.
+ *
+ * Reuses the "Home feed native" unit (6413880979). Create a dedicated
+ * "Notifications" unit later to report this surface separately.
  */
 export function NotificationAd({ slot = "6413880979" }: { slot?: string }) {
-  const insRef = useRef<HTMLModElement>(null);
-  const pushed = useRef(false);
-  const status = useAdFillStatus(insRef);
-
+  // Decided after mount (isAdSenseConfigured reads window.location), so
+  // server and client render the same HTML.
+  const [enabled, setEnabled] = useState(false);
   useEffect(() => {
-    if (pushed.current || !insRef.current) return;
-    if (!isAdSenseConfigured(slot)) return;
-    try {
-      (window.adsbygoogle = window.adsbygoogle || []).push({});
-      pushed.current = true;
-    } catch (error) {
-      console.error("AdSense push failed", error);
-    }
+    setEnabled(isAdSenseConfigured(slot));
   }, [slot]);
 
-  // Not a real, configured ad placement — skip the request and don't
-  // reserve a row for it.
-  if (!isAdSenseConfigured(slot)) return null;
+  if (!enabled) return null;
+  return <NotificationAdUnit slot={slot} />;
+}
 
-  // No fill — drop the row entirely instead of leaving a blank
-  // "Sponsored" line sitting in the notifications list.
-  if (status === "unfilled") return null;
+function NotificationAdUnit({ slot }: { slot: string }) {
+  const { cardRef, insRef, status, filled, collapsedStyle } = useAdUnit<HTMLLIElement>();
+
+  useEffect(() => {
+    if (status !== "pending") console.debug(`[NotificationAd] slot ${slot} status: ${status}`);
+  }, [status, slot]);
 
   return (
-    <li>
-      <div className="flex items-start gap-3 py-4">
-        <div className="grid h-10 w-10 flex-none place-items-center rounded-full bg-secondary text-muted-foreground">
-          <Megaphone className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="min-h-[52px] w-full overflow-hidden rounded-lg bg-secondary/30">
-            <ins
-              ref={insRef}
-              className="adsbygoogle block w-full"
-              style={{ display: "block" }}
-              data-ad-client={ADSENSE_CLIENT}
-              data-ad-slot={slot}
-              data-ad-format="fluid"
-              data-ad-layout="in-article"
-              data-full-width-responsive="true"
-            />
-          </div>
-          <span className="mt-1 inline-block text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-            Sponsored
-          </span>
-        </div>
+    <li
+      ref={cardRef}
+      aria-hidden={!filled}
+      aria-label={filled ? "Advertisement" : undefined}
+      style={filled ? undefined : collapsedStyle}
+      // Collapsed: border-0 cancels the list's `divide-y` line so an
+      // invisible row doesn't leave a double divider behind.
+      className={filled ? "py-4" : `${COLLAPSED_CLASS} border-0`}
+    >
+      <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <Megaphone className="h-3.5 w-3.5" />
+          Sponsored
+        </span>
+        <span className="font-normal">Advertisement</span>
+      </div>
+      <div className="w-full overflow-hidden rounded-lg bg-secondary/30 text-center">
+        <ins
+          ref={insRef}
+          className="adsbygoogle block w-full"
+          style={{ display: "block" }}
+          data-ad-client={ADSENSE_CLIENT}
+          data-ad-slot={slot}
+          data-ad-format="horizontal"
+        />
       </div>
     </li>
   );

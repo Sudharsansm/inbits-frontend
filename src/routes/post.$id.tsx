@@ -1,6 +1,5 @@
-
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { fetchArticle, fetchFeed, type FeedItem } from "@/lib/api";
 import {
@@ -435,16 +434,30 @@ function PostArticle({
         <div className="relative">
           <div className="serif mt-6 max-w-3xl space-y-6 text-justify text-[17px] leading-8 tracking-[0.005em] text-foreground/90 sm:text-[18px]">
             {translatedParagraphs.map((para, i) => (
-              <p
-                key={i}
-                className={
-                  i === 0
-                    ? "first-letter:float-left first-letter:mr-2 first-letter:text-6xl first-letter:font-black first-letter:leading-[0.85] first-letter:text-primary"
-                    : undefined
-                }
-              >
-                {para}
-              </p>
+              <Fragment key={i}>
+                <p
+                  className={
+                    i === 0
+                      ? "first-letter:float-left first-letter:mr-2 first-letter:text-6xl first-letter:font-black first-letter:leading-[0.85] first-letter:text-primary"
+                      : undefined
+                  }
+                >
+                  {para}
+                </p>
+
+                {/* In-article horizontal ad: after the first paragraph,
+                    and only when there is more teaser text below it --
+                    a one-paragraph story gets just the ad at the bottom.
+                    Out of flow (and invisible) until Google fills it, so
+                    an unfilled slot leaves no gap in the text. */}
+                {i === 0 && translatedParagraphs.length >= 2 && (
+                  <AdSlot
+                    slot="4019651928"
+                    label="Sponsored"
+                    className="not-italic"
+                  />
+                )}
+              </Fragment>
             ))}
 
             {isFullArticleMissing && (
@@ -493,8 +506,10 @@ function PostArticle({
           </a>
         )}
 
-        {/* Advertisement */}
-        <div className="mt-6">
+        {/* Advertisement -- mt-8 (not mt-6): keep clear space between the
+            big "Read the full story" button above and the ad, so a tap
+            meant for the button can't land on the ad. */}
+        <div className="mt-8">
           <AdSlot
             slot="4019651928"
             label="Sponsored"

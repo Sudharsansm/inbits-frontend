@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef } from "react";
-import { useAdFillStatus } from "@/hooks/useAdFillStatus";
+import { useEffect, useState } from "react";
+import { COLLAPSED_CLASS, useAdUnit } from "@/components/ads/useAdUnit";
 
 /**
  * ------------------------------------------------------------------
@@ -64,65 +64,96 @@ export function isAdSenseConfigured(slot: string): boolean {
   return !isPlaceholderSlot(slot) && !isLikelyUnservableHost();
 }
 
+export type AdSlotFormat = "horizontal" | "rectangle" | "auto";
+
+/**
+ * A sponsored card for lists and pages (search, jobs, channels, journal,
+ * showcase, job / post detail). Shows a *horizontal* banner-style creative
+ * (320x100 on a phone, 728x90 on desktop) inside a card that matches the
+ * app's other cards, clearly labelled "Sponsored" / "Advertisement".
+ *
+ * Request / collapse behaviour lives in useAdUnit (one request, made near
+ * the viewport; invisible and out of the layout until Google reports the
+ * ad as filled; never unmounted by a timeout).
+ *
+ * `format` defaults to "horizontal". Use "auto" for a slot that sits in a
+ * card-shaped container (e.g. the sideways-scrolling Stands showcase row).
+ * The unit must be a responsive Display unit for "horizontal" to be
+ * honoured.
+ */
 function AdSlotInner({
   slot,
   className = "",
   label = "Sponsored",
+  format = "horizontal",
 }: {
   /** Numeric ad unit ID from the AdSense dashboard. */
   slot: string;
   className?: string;
-  /** Small caption shown above the unit, matching how the feed already
-   * labels its own rails (Stands, Journal, etc). Required by AdSense's
-   * policies: sponsored content must be clearly identified. */
+  /** Caption shown in the card header. Required by AdSense's policies:
+   * sponsored content must be clearly identified. */
   label?: string;
+  format?: AdSlotFormat;
 }) {
-  const insRef = useRef<HTMLModElement>(null);
-  const pushed = useRef(false);
-  const reactId = useId();
-  const status = useAdFillStatus(insRef);
-
+  // Decided after mount: isAdSenseConfigured() reads window.location, so
+  // it is false on the server and true on the client -- rendering the
+  // card straight away would make server and client HTML disagree.
+  const [enabled, setEnabled] = useState(false);
   useEffect(() => {
-    // Guards against React 18 StrictMode's double-invoke in dev, and
-    // against this component remounting if the feed re-renders the
-    // Fragment it lives in — pushing the same <ins> twice throws.
-    if (pushed.current) return;
-    if (!insRef.current) return;
-    if (!isAdSenseConfigured(slot)) return;
-
-    try {
-      (window.adsbygoogle = window.adsbygoogle || []).push({});
-      pushed.current = true;
-    } catch (error) {
-      console.error("AdSense push failed", error);
-    }
+    setEnabled(isAdSenseConfigured(slot));
   }, [slot]);
 
-  // Same "not a real ad placement yet" skip as the push above — render
-  // nothing rather than reserving space for a request we know we didn't
-  // make.
-  if (!isAdSenseConfigured(slot)) return null;
+  if (!enabled) return null;
+  return <AdSlotUnit slot={slot} className={className} label={label} format={format} />;
+}
 
-  // No ad came back (or the request never resolved) — don't leave the
-  // card's border/label/padding sitting there empty, drop the slot
-  // entirely so the feed collapses around it.
-  if (status === "unfilled") return null;
+function AdSlotUnit({
+  slot,
+  className,
+  label,
+  format,
+}: {
+  slot: string;
+  className: string;
+  label: string;
+  format: AdSlotFormat;
+}) {
+  const { cardRef, insRef, status, filled, collapsedStyle } = useAdUnit<HTMLDivElement>();
+
+  useEffect(() => {
+    if (status !== "pending") console.debug(`[AdSlot] slot ${slot} status: ${status}`);
+  }, [status, slot]);
 
   return (
-    <div className={`mb-4 overflow-hidden rounded-xl border bg-card ${className}`}>
-      <div className="flex items-center gap-2 px-3 pt-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+    <div
+      ref={cardRef}
+      aria-hidden={!filled}
+      aria-label={filled ? "Advertisement" : undefined}
+      style={filled ? undefined : collapsedStyle}
+      className={
+        filled
+          ? `mb-4 overflow-hidden rounded-xl border bg-card ${className}`
+          : `${COLLAPSED_CLASS} ${className}`
+      }
+    >
+      <div className="flex items-center justify-between px-3 pt-2 text-[10px] uppercase leading-4 tracking-[0.18em] text-muted-foreground">
         <span>{label}</span>
+        <span>Advertisement</span>
       </div>
-      <ins
-        ref={insRef}
-        key={reactId}
-        className="adsbygoogle block px-3 pb-3 pt-1"
-        style={{ display: "block" }}
-        data-ad-client={ADSENSE_CLIENT}
-        data-ad-slot={slot}
-        data-ad-format="auto"
-        data-full-width-responsive="true"
-      />
+      {/* No padding on the <ins> itself (AdSense measures it); the
+          creative is centred by the wrapper. overflow-hidden: clip rather
+          than let a creative widen the page. */}
+      <div className="w-full overflow-hidden pb-2 pt-1 text-center">
+        <ins
+          ref={insRef}
+          className="adsbygoogle block w-full"
+          style={{ display: "block" }}
+          data-ad-client={ADSENSE_CLIENT}
+          data-ad-slot={slot}
+          data-ad-format={format}
+          {...(format === "auto" ? { "data-full-width-responsive": "true" } : {})}
+        />
+      </div>
     </div>
   );
 }
