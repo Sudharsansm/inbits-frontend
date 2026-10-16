@@ -25,7 +25,6 @@ import { hasImage } from "@/lib/postImage";
 import { useInterestProfile } from "@/lib/interests";
 import { UpdateReel } from "@/components/updates/UpdateReel";
 import { AdReel } from "@/components/ads/AdReel";
-import type { AdFillStatus } from "@/hooks/useAdFillStatus";
 import { ShareSheet } from "@/components/updates/ShareSheet";
 
 export const Route = createFileRoute("/updates")({
@@ -60,8 +59,11 @@ export const Route = createFileRoute("/updates")({
 // article and coming back would always drop you back at reel #1.
 let savedScrollTop = 0;
 
-/** One ad reel before every Nth reel (so N organic reels sit between ads). */
-const AD_EVERY = 4;
+/** One ad reel before every Nth reel, so N organic reels sit between ads:
+ * 2 -> reel, reel, ad, reel, reel, ad ... Raise it (3-5) to show fewer ads --
+ * full-screen ads are the most intrusive placement in the app, and 2 is the
+ * densest setting AdSense's "excessive ads" review is likely to tolerate. */
+const AD_EVERY = 2;
 
 /**
  * Wrapper that owns an ad's slot in the snap-scroll list.
@@ -69,28 +71,30 @@ const AD_EVERY = 4;
  * - Lazy: the real `AdReel` is only mounted once its position scrolls
  *   within ~2 screens of view (IntersectionObserver rooted on the reel
  *   list), so opening the page doesn't request every ad at once.
- * - Collapsed until filled: while the request is pending (and if it
- *   never fills) the slot has zero height, so the reader never lands on
- *   a blank full-screen "Sponsored" card. It keeps its width, which is
- *   all AdSense needs to size a vertical unit. Once Google reports
- *   `filled` it becomes a normal full-height snap reel.
- * - Never unmounts the <ins> because of a timeout (the old version did,
- *   so a slow response was thrown away); a late fill still appears.
+ * - Zero-height until an ad has rendered: while the request is pending (or
+ *   if it never fills) the wrapper is a plain auto-height block, which is 0px
+ *   tall because the empty <ins> has no height -- so the reader never lands
+ *   on a blank full-screen "Sponsored" card. Nothing is hidden with
+ *   h-0 / opacity tricks (they can stop a slot from being filled). Once
+ *   Google has rendered an ad it becomes a normal full-height snap reel.
+ * - Never unmounts the <ins> because of a timeout; a late fill still appears.
  *
  * Must stay a direct child of the scroll container (CSS scroll-snap
  * only applies to direct children).
  */
 function LazyAdReel({
   slot,
+  ordinal,
   scrollRootRef,
 }: {
   slot?: string;
+  ordinal?: number;
   scrollRootRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const placeholderRef = useRef<HTMLDivElement>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
-  const [status, setStatus] = useState<AdFillStatus>("pending");
-  const onStatusChange = useCallback((next: AdFillStatus) => setStatus(next), []);
+  const [rendered, setRendered] = useState(false);
+  const onRenderedChange = useCallback((next: boolean) => setRendered(next), []);
 
   useEffect(() => {
     if (shouldLoad) return;
@@ -109,21 +113,20 @@ function LazyAdReel({
     return () => io.disconnect();
   }, [scrollRootRef, shouldLoad]);
 
-  if (!shouldLoad) return <div ref={placeholderRef} className="h-0 w-full" />;
+  // min-h-px: a real (1px) box so the "near the viewport" observer always
+  // has something to observe.
+  if (!shouldLoad) return <div ref={placeholderRef} className="min-h-px w-full" />;
 
   return (
     <div
-      aria-hidden={status !== "filled"}
-      className={
-        status === "filled"
-          ? "ad-fade-in h-full w-full snap-start snap-always"
-          : "pointer-events-none h-0 w-full overflow-hidden opacity-0"
-      }
+      aria-hidden={!rendered}
+      className={rendered ? "ad-fade-in h-full w-full snap-start snap-always" : "w-full"}
     >
       <AdReel
         slot={slot}
+        ordinal={ordinal}
         frameHeight={scrollRootRef.current?.clientHeight}
-        onStatusChange={onStatusChange}
+        onRenderedChange={onRenderedChange}
       />
     </div>
   );
@@ -456,7 +459,7 @@ function Updates() {
           const isLiked = liked[p.id];
           const isSaved = isSavedId(p.id);
           const burstKey = burst[p.id] ?? 0;
-          // One ad reel before every 4th reel -- never before the first
+          // One ad reel before every 2nd reel -- never before the first
           // (the page never opens on an ad), so there are always
           // AD_EVERY organic reels between two ads and always a reel
           // after an ad. flatMap, not a wrapping element: ads and reels
@@ -468,7 +471,13 @@ function Updates() {
           const adOrdinal = idx > 0 && idx % AD_EVERY === 0 ? idx / AD_EVERY : null;
           const nodes: ReactNode[] = [];
           if (adOrdinal !== null) {
-            nodes.push(<LazyAdReel key={`reel-ad-${adOrdinal}`} scrollRootRef={scrollRef} />);
+            nodes.push(
+              <LazyAdReel
+                key={`reel-ad-${adOrdinal}`}
+                ordinal={adOrdinal}
+                scrollRootRef={scrollRef}
+              />,
+            );
           }
           nodes.push(
             <div
