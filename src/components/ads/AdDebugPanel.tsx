@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { clearAdDebugFlag, readAdDebugFlag } from "@/components/ads/adDebug";
-import { runAdSelfTest, type SelfTestResult } from "@/components/ads/AdSelfTest";
+import { runAdSelfTest, type SelfTestResult } from "@/components/ads/adSelfTest";
 
 /**
  * On-screen AdSense diagnostics for phones and the installed (PWA) app,
@@ -11,7 +11,7 @@ import { runAdSelfTest, type SelfTestResult } from "@/components/ads/AdSelfTest"
  * https://inbits.vercel.app/?adsdebug=1). That sets a flag in this
  * origin's localStorage, so the panel also shows in the installed app on
  * the same phone (they share storage). Turn it off with ?adsdebug=0 or the
- * "turn off" button. 
+ * "turn off" button.
  *
  * It only READS state (script tag, the adsbygoogle queue, each <ins>'s
  * attributes and size, AdSense-related console errors). It never requests,
