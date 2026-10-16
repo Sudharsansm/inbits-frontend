@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { clearAdDebugFlag, readAdDebugFlag } from "@/components/ads/adDebug";
+import { runAdSelfTest, type SelfTestResult } from "@/components/ads/AdSelfTest";
 
 /**
  * On-screen AdSense diagnostics for phones and the installed (PWA) app,
@@ -10,11 +11,13 @@ import { clearAdDebugFlag, readAdDebugFlag } from "@/components/ads/adDebug";
  * https://inbits.vercel.app/?adsdebug=1). That sets a flag in this
  * origin's localStorage, so the panel also shows in the installed app on
  * the same phone (they share storage). Turn it off with ?adsdebug=0 or the
- * "turn off" button.
+ * "turn off" button. 
  *
  * It only READS state (script tag, the adsbygoogle queue, each <ins>'s
  * attributes and size, AdSense-related console errors). It never requests,
- * clicks or modifies ads.
+ * clicks or modifies ads. It also runs a one-shot "phone self-test" (see
+ * adSelfTest.ts) that checks whether this phone can reach Google's ad servers
+ * or is hiding ads, and prints a plain-English verdict.
  */
 const ERROR_PATTERN = /adsbygoogle|tagerror|adsense|googlesyndication|pagead/i;
 const MAX_ERRORS = 5;
@@ -61,11 +64,25 @@ export function AdDebugPanel() {
   const [on, setOn] = useState(false);
   const [lines, setLines] = useState<string[]>([]);
   const errors = useRef<string[]>([]);
+  const [test, setTest] = useState<SelfTestResult | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const runTest = () => {
+    setTesting(true);
+    runAdSelfTest()
+      .then(setTest)
+      .catch(() => setTest({ lines: [], verdict: "VERDICT: the self-test itself failed to run." }))
+      .finally(() => setTesting(false));
+  };
 
   // Decided after mount so server and client render the same (empty) HTML.
   useEffect(() => {
     setOn(readAdDebugFlag());
   }, []);
+
+  useEffect(() => {
+    if (on) runTest();
+  }, [on]);
 
   useEffect(() => {
     if (!on) return;
@@ -123,6 +140,23 @@ export function AdDebugPanel() {
             hide
           </button>
         </span>
+      </div>
+      <div className="mb-1 border-b border-white/20 pb-1">
+        <div className="flex items-center justify-between font-sans text-[11px] font-semibold text-white">
+          <span>Phone self-test</span>
+          <button type="button" className="underline" onClick={runTest} disabled={testing}>
+            {testing ? "testing..." : "run again"}
+          </button>
+        </div>
+        {test?.verdict && (
+          <div className="my-1 font-sans text-[11px] text-yellow-300">{test.verdict}</div>
+        )}
+        {test?.lines.map((l, i) => (
+          <div key={`t${i}`} className={/BLOCKED|HIDDEN|ON$/.test(l) ? "text-red-300" : undefined}>
+            {l}
+          </div>
+        ))}
+        {!test && <div>running...</div>}
       </div>
       {lines.map((l, i) => (
         <div key={i} className={l.startsWith("!") ? "text-red-300" : undefined}>
