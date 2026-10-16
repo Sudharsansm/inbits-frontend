@@ -7,15 +7,15 @@ import { readAdDebugFlag } from "@/components/ads/adDebug";
  * CONFIG (all optional -- the default slot is the one already in this repo)
  * ------------------------------------------------------------------
  *  VITE_ADSENSE_UPDATES_SLOT        numeric ad-unit ID for the Updates reels.
- *  VITE_ADSENSE_UPDATES_FORMAT      fluid (default) | adaptive | vertical |
+ *  VITE_ADSENSE_UPDATES_FORMAT      adaptive (default) | fluid | vertical |
  *                                   rectangle | auto
- *      fluid     Google's NATIVE card -- advertiser logo + name,
- *                "Sponsored", the (⋮) menu, a large image, a headline and
- *                the heart / share row: the Instagram-style sponsored
- *                post. Needs an In-feed / native ad unit.
- *      adaptive  a vertical banner (300x600...) when the screen is tall
- *                enough, else a medium rectangle. Needs a responsive
- *                Display unit.
+ *      adaptive  VERTICAL ad: a tall banner (300x600, 160x600 ...) filling
+ *                the reel frame when the screen is tall enough to show it
+ *                uncropped, else a medium rectangle. Needs a responsive
+ *                DISPLAY ad unit.
+ *      fluid     Google's native Instagram-style card (advertiser logo +
+ *                name, "Sponsored", menu, image, headline, heart/share).
+ *                Roughly square, not tall. Needs an In-feed / native unit.
  *      vertical | rectangle | auto   force one banner shape (Display unit).
  *  VITE_ADSENSE_UPDATES_LAYOUT_KEY  optional data-ad-layout-key from the
  *                                   unit's snippet (fluid only).
@@ -47,7 +47,7 @@ const VALID_MODES: AdMode[] = ["fluid", "adaptive", "vertical", "rectangle", "au
 const RAW_MODE = (import.meta.env.VITE_ADSENSE_UPDATES_FORMAT as string | undefined)?.trim();
 const UPDATES_MODE: AdMode = VALID_MODES.includes(RAW_MODE as AdMode)
   ? (RAW_MODE as AdMode)
-  : "fluid";
+  : "adaptive";
 
 /** The reel frame is never wider than this (matches UpdateReel's md:max-w-[420px]). */
 const FRAME_MAX_WIDTH = 420;
@@ -65,10 +65,15 @@ function pickAdaptiveFormat(frameWidth: number, frameHeight: number): AdFormat {
 }
 
 /**
- * A full-screen "reel" slot for the Updates feed, in the style of an
- * Instagram sponsored reel/post: by default Google's native card, centred
- * in the same frame as a real reel, with no extra chrome of our own on top
- * of it (its own "Sponsored" label and ad menu are part of the creative).
+ * A full-screen "reel" slot for the Updates feed. By default a VERTICAL
+ * ad (the tallest standard AdSense shapes: 300x600, 160x600 ...) fills the
+ * same frame as a real reel -- full width on phones, 420px on desktop,
+ * paper background -- with a "Sponsored / Advertisement" label at the top.
+ * (Full-screen 9:16 video creatives like Instagram's are not something
+ * AdSense serves to websites; the tallest it offers is the half-page
+ * vertical.) Set the format to "fluid" for Google's native card instead,
+ * centred in the same frame with no extra chrome of our own on top of it
+ * (its own "Sponsored" label and ad menu are part of the creative).
  *
  * Client-only by construction: LazyAdReel (routes/updates.tsx) mounts this
  * only after the reader scrolls near it, so it is never server-rendered or
@@ -199,7 +204,10 @@ export function AdReel({
         className={
           rendered
             ? `relative w-full max-w-full overflow-hidden border-border bg-card md:max-w-[420px] md:border-x ${
-                native ? "" : "px-3 pb-4 pt-12"
+                // Banner shapes: fill the whole reel slot (label at the top,
+                // the tall ad centred in the rest), like a poster. Native
+                // cards size themselves and are centred by the section.
+                native ? "" : "flex h-full items-center justify-center px-3 pb-4 pt-12 text-center"
               }`
             : "w-full"
         }
