@@ -8,29 +8,32 @@ function placements(total: number): number[] {
 }
 
 describe("adOrdinalAfter", () => {
-  it("places the first ad after the 5th post and nothing before it", () => {
+  it("is configured for 2 posts then 1 ad", () => {
+    expect(IN_FEED_AD_EVERY).toBe(2);
+  });
+
+  it("places the first ad after the Nth post and nothing before it", () => {
     expect(placements(30)[0]).toBe(IN_FEED_AD_EVERY - 1);
     for (let i = 0; i < IN_FEED_AD_EVERY - 1; i++) expect(adOrdinalAfter(i, 30)).toBeNull();
   });
 
-  it("keeps at least 3 organic posts between consecutive ads (brief: 4-6 apart)", () => {
+  it("puts exactly N organic posts between consecutive ads", () => {
     const at = placements(100);
     expect(at.length).toBeGreaterThan(5);
-    for (let i = 1; i < at.length; i++) {
-      const organicBetween = at[i] - at[i - 1];
-      expect(organicBetween).toBeGreaterThanOrEqual(4);
-      expect(organicBetween).toBeLessThanOrEqual(6);
-    }
+    for (let i = 1; i < at.length; i++) expect(at[i] - at[i - 1]).toBe(IN_FEED_AD_EVERY);
   });
 
   it("never puts an ad after the last post", () => {
-    expect(adOrdinalAfter(4, 5)).toBeNull();
-    expect(adOrdinalAfter(4, 6)).toBe(1);
+    const n = IN_FEED_AD_EVERY;
+    expect(adOrdinalAfter(n - 1, n)).toBeNull(); // Nth post is also the last
+    expect(adOrdinalAfter(n - 1, n + 1)).toBe(1); // a post follows it
   });
 
-  it("gives each ad a unique, stable ordinal", () => {
-    const ordinals = placements(60).map((i) => adOrdinalAfter(i, 60));
-    expect(ordinals).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  it("gives each ad a unique, stable, consecutive ordinal", () => {
+    const total = 60;
+    const ordinals = placements(total).map((i) => adOrdinalAfter(i, total));
+    expect(ordinals).toEqual(ordinals.map((_, k) => k + 1));
+    expect(new Set(ordinals).size).toBe(ordinals.length);
   });
 
   it("returns null for an empty feed", () => {

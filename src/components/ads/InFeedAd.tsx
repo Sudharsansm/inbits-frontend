@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
-import { useAdFillStatus } from "@/hooks/useAdFillStatus";
 
 /**
  * ------------------------------------------------------------------
@@ -68,9 +67,13 @@ const REQUEST_MARGIN = "400px 0px";
  * Why it is its own component (see the root-cause notes):
  *  1. No `feed-card` class: that class applies `content-visibility: auto`,
  *     which made the <ins> measure 0px wide at request time.
- *  2. The <ins> is never unmounted by a timeout; the card is only collapsed
- *     (zero height, still full width) until Google reports `filled`, so a
- *     slow response can still appear and an unfilled slot leaves no gap.
+ *  2. The <ins> is never unmounted by a timeout, and it is NOT hidden while
+ *     it waits (no h-0 / opacity-0 / overflow tricks -- some mobile browsers
+ *     and AdSense itself treat a hidden slot as not worth filling). An empty
+ *     <ins> is naturally zero-height, so an unfilled slot leaves no gap; the
+ *     card's border/header only appear once an ad has actually rendered
+ *     (data-ad-status="filled" OR an ad iframe is present). A slow response
+ *     still appears whenever it arrives.
  *  3. Enabled only after mount (isAdSenseConfigured reads window.location),
  *     so server and client render the same HTML.
  *  4. One request per mounted <ins>, made when the card is near the
@@ -115,9 +118,36 @@ function InFeedAdUnit({
   // Guards React StrictMode's dev double-effect and any re-run: this
   // <ins> is pushed to AdSense at most once.
   const requested = useRef(false);
-  const status = useAdFillStatus(insRef, { timeoutMs: 8000 });
-  const filled = status === "filled";
+  // True once Google has put an ad in the <ins>. Read from the real DOM
+  // (status attribute OR an <iframe> child) so it works for every format
+  // and never depends on one attribute being present.
+  const [rendered, setRendered] = useState(false);
   const native = format === "fluid";
+
+  useEffect(() => {
+    const ins = insRef.current;
+    if (!ins) return;
+    let last = "";
+    const check = () => {
+      const attr = ins.getAttribute("data-ad-status") ?? "";
+      const hasIframe = !!ins.querySelector("iframe");
+      setRendered(attr === "filled" || hasIframe);
+      const summary = `${attr || "pending"}${hasIframe ? "+iframe" : ""}`;
+      if (summary !== last && summary !== "pending") {
+        last = summary;
+        console.debug(`[InFeedAd] slot ${slot} (${format}) status: ${summary}`);
+      }
+    };
+    check();
+    const mo = new MutationObserver(check);
+    mo.observe(ins, {
+      attributes: true,
+      attributeFilter: ["data-ad-status"],
+      childList: true,
+      subtree: true,
+    });
+    return () => mo.disconnect();
+  }, [slot, format]);
 
   useEffect(() => {
     const card = cardRef.current;
@@ -153,26 +183,22 @@ function InFeedAdUnit({
     return () => io.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (status !== "pending") {
-      console.debug(`[InFeedAd] slot ${slot} (${format}) status: ${status}`);
-    }
-  }, [status, slot, format]);
-
   return (
     <article
       ref={cardRef}
-      aria-hidden={!filled}
-      aria-label={filled ? "Advertisement" : undefined}
-      className={
-        filled
-          ? "w-full border-b border-border bg-paper"
-          : "pointer-events-none h-0 w-full overflow-hidden opacity-0"
-      }
+      aria-hidden={!rendered}
+      aria-label={rendered ? "Advertisement" : undefined}
+      // min-h-px: a real (1px) box, so the "near the viewport" observer
+      // always has something to observe even while the <ins> is empty.
+      // The border is part of the frame only once there is an ad in it.
+      className={`min-h-px w-full overflow-hidden bg-paper ${
+        rendered ? "border-b border-border" : ""
+      }`}
     >
-      {/* Plain banners have no label of their own, so ours stays. Native
-          (fluid) creatives bring "Sponsored" + the ad menu themselves. */}
-      {!native && (
+      {/* Plain banners have no label of their own, so ours stays -- but only
+          once there is a banner to label. Native (fluid) creatives bring
+          "Sponsored" + the ad menu themselves. */}
+      {!native && rendered && (
         <header className="flex items-center gap-2.5 px-3 py-2.5">
           <div className="grid h-9 w-9 flex-none place-items-center rounded-full bg-secondary text-muted-foreground">
             <Megaphone className="h-4 w-4" />
@@ -188,7 +214,13 @@ function InFeedAdUnit({
           padding and runs edge to edge like a post. overflow-hidden: clip
           rather than let a creative widen the page. No fixed height:
           Google sizes the unit. */}
-      <div className={native ? "w-full overflow-hidden" : "w-full overflow-hidden px-3 pb-3"}>
+      <div
+        className={
+          native
+            ? "w-full overflow-hidden"
+            : `w-full overflow-hidden ${rendered ? "px-3 pb-3" : ""}`
+        }
+      >
         <ins
           ref={insRef}
           className="adsbygoogle block w-full"

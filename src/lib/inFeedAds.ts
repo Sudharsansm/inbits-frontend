@@ -2,16 +2,17 @@
  * Where in-feed ads go in the home feed.
  *
  * Kept as a pure function (no React, no window) so the spacing rules are
- * unit-testable — see inFeedAds.test.ts.
+ * unit-testable -- see inFeedAds.test.ts.
  *
  * Rules:
- *  - one ad after every IN_FEED_AD_EVERY organic posts (5 => after the
- *    5th, 10th, 15th ... post), which keeps 4 organic posts between any
- *    two ads (the brief asks for 4-6 apart, and never fewer than 3);
- *  - never after the very last post, so the feed never ends on an ad
- *    with no organic content below it.
+ *  - one ad after every IN_FEED_AD_EVERY organic posts. At 2 the feed reads
+ *    "post, post, ad, post, post, ad, ..." -- change the one number below to
+ *    show ads more or less often (3-5 is gentler on readers and on AdSense's
+ *    "excessive ads" policy review; 2 is the densest sensible setting);
+ *  - never after the very last post, so the feed never ends on an ad with
+ *    no organic content below it.
  */
-export const IN_FEED_AD_EVERY = 5;
+export const IN_FEED_AD_EVERY = 2;
 
 /**
  * Returns the 1-based ordinal of the ad that should render right after
