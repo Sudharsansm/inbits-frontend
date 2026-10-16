@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { clearAdDebugFlag, readAdDebugFlag } from "@/components/ads/adDebug";
 
 /**
  * On-screen AdSense diagnostics for phones and the installed (PWA) app,
@@ -15,20 +16,8 @@ import { useEffect, useRef, useState } from "react";
  * attributes and size, AdSense-related console errors). It never requests,
  * clicks or modifies ads.
  */
-const KEY = "inbits:adsdebug";
 const ERROR_PATTERN = /adsbygoogle|tagerror|adsense|googlesyndication|pagead/i;
 const MAX_ERRORS = 5;
-
-function readFlag(): boolean {
-  try {
-    const q = new URLSearchParams(window.location.search).get("adsdebug");
-    if (q === "1") window.localStorage.setItem(KEY, "1");
-    if (q === "0") window.localStorage.removeItem(KEY);
-    return window.localStorage.getItem(KEY) === "1";
-  } catch {
-    return false;
-  }
-}
 
 function snapshot(errors: string[]): string[] {
   const out: string[] = [];
@@ -75,7 +64,7 @@ export function AdDebugPanel() {
 
   // Decided after mount so server and client render the same (empty) HTML.
   useEffect(() => {
-    setOn(readFlag());
+    setOn(readAdDebugFlag());
   }, []);
 
   useEffect(() => {
@@ -124,11 +113,7 @@ export function AdDebugPanel() {
             type="button"
             className="underline"
             onClick={() => {
-              try {
-                window.localStorage.removeItem(KEY);
-              } catch {
-                /* ignore */
-              }
+              clearAdDebugFlag();
               setOn(false);
             }}
           >

@@ -487,8 +487,8 @@ function Home() {
         )}
         {feedPool.flatMap((item, index) => {
           const slot = index % 8;
-          // In-feed ad cadence lives in lib/inFeedAds.ts (one ad after
-          // every 5 organic posts, never last) and is independent of the
+          // In-feed ad cadence lives in lib/inFeedAds.ts (IN_FEED_AD_EVERY
+          // = 2 -> post, post, ad; never after the last post) and is independent of the
           // 8-post rail rotation below. flatMap (not map) so each ad is
           // a direct, keyed child of the feed <section>: its key is its
           // ordinal, so the same <ins> survives prepends/filtering and
@@ -530,7 +530,7 @@ function Home() {
             </Fragment>,
           ];
           if (adOrdinal !== null) {
-            nodes.push(<InFeedAd key={`in-feed-ad-${adOrdinal}`} />);
+            nodes.push(<InFeedAd key={`in-feed-ad-${adOrdinal}`} ordinal={adOrdinal} />);
           }
           return nodes;
         })}

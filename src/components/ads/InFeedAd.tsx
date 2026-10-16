@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
+import { readAdDebugFlag } from "@/components/ads/adDebug";
 
 /**
  * ------------------------------------------------------------------
@@ -87,6 +88,7 @@ export function InFeedAd({
   slot = HOME_SLOT || DEFAULT_HOME_SLOT,
   format = HOME_FORMAT,
   layoutKey = HOME_LAYOUT_KEY,
+  ordinal,
 }: {
   /** Numeric ad-unit ID from the AdSense dashboard. */
   slot?: string;
@@ -94,6 +96,9 @@ export function InFeedAd({
   format?: InFeedAdFormat;
   /** `data-ad-layout-key` of an In-feed unit (fluid only). */
   layoutKey?: string;
+  /** 1-based position of this ad in the feed; only used to label the
+   * debug placeholder (?adsdebug=1). */
+  ordinal?: number;
 }) {
   const [enabled, setEnabled] = useState(false);
   useEffect(() => {
@@ -101,17 +106,26 @@ export function InFeedAd({
   }, [slot]);
 
   if (!enabled) return null;
-  return <InFeedAdUnit slot={slot} format={format} layoutKey={layoutKey || undefined} />;
+  return (
+    <InFeedAdUnit
+      slot={slot}
+      format={format}
+      layoutKey={layoutKey || undefined}
+      ordinal={ordinal}
+    />
+  );
 }
 
 function InFeedAdUnit({
   slot,
   format,
   layoutKey,
+  ordinal,
 }: {
   slot: string;
   format: InFeedAdFormat;
   layoutKey?: string;
+  ordinal?: number;
 }) {
   const cardRef = useRef<HTMLElement>(null);
   const insRef = useRef<HTMLModElement>(null);
@@ -122,7 +136,16 @@ function InFeedAdUnit({
   // (status attribute OR an <iframe> child) so it works for every format
   // and never depends on one attribute being present.
   const [rendered, setRendered] = useState(false);
+  // Debug only (?adsdebug=1): a visible placeholder where the ad goes, so
+  // you can tell "the 2-posts-1-ad PLACEMENT works" apart from "Google
+  // returned no ad". Normal visitors never see it.
+  const [debug, setDebug] = useState(false);
+  const [debugStatus, setDebugStatus] = useState("waiting");
   const native = format === "fluid";
+
+  useEffect(() => {
+    setDebug(readAdDebugFlag());
+  }, []);
 
   useEffect(() => {
     const ins = insRef.current;
@@ -132,6 +155,11 @@ function InFeedAdUnit({
       const attr = ins.getAttribute("data-ad-status") ?? "";
       const hasIframe = !!ins.querySelector("iframe");
       setRendered(attr === "filled" || hasIframe);
+      setDebugStatus(
+        `${attr || "no answer yet"}${hasIframe ? " + iframe" : ""} | requested: ${
+          ins.getAttribute("data-adsbygoogle-status") ? "yes" : "not yet (scroll to it)"
+        }`,
+      );
       const summary = `${attr || "pending"}${hasIframe ? "+iframe" : ""}`;
       if (summary !== last && summary !== "pending") {
         last = summary;
@@ -142,7 +170,7 @@ function InFeedAdUnit({
     const mo = new MutationObserver(check);
     mo.observe(ins, {
       attributes: true,
-      attributeFilter: ["data-ad-status"],
+      attributeFilter: ["data-ad-status", "data-adsbygoogle-status"],
       childList: true,
       subtree: true,
     });
@@ -208,6 +236,18 @@ function InFeedAdUnit({
             <div className="text-[10px] text-muted-foreground">Advertisement</div>
           </div>
         </header>
+      )}
+
+      {debug && !rendered && (
+        <div className="m-2 rounded border border-dashed border-primary/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+          <div className="font-semibold text-foreground">
+            Ad position{ordinal ? ` #${ordinal}` : ""} (debug)
+          </div>
+          <div>
+            slot {slot} · {format}
+          </div>
+          <div>Google: {debugStatus}</div>
+        </div>
       )}
 
       {/* Native: no padding at all -- the creative supplies its own inner
