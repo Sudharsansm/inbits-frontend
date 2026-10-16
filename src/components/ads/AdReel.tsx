@@ -87,7 +87,7 @@ function pickAdaptiveFormat(frameWidth: number, slotHeight: number): AdFormat {
  * A full-screen "reel" slot for the Updates feed, dressed like the reels
  * around it (see UpdateReel): the same snap slot and the same frame (full
  * width and height on phones, a 9:16 box capped at 420px on desktop), the
- * same dark immersive background, the same pill + small-caps overlay
+ * app's default background (no dark backdrop), the same pill + small-caps label
  * language -- a "Sponsored" pill with "Advertisement" at the top-left, an
  * "Ad" tag at the bottom-right where the reel's own meta text sits -- and
  * by default a VERTICAL ad (the tallest standard AdSense shapes: 300x600,
@@ -105,7 +105,7 @@ function pickAdaptiveFormat(frameWidth: number, slotHeight: number): AdFormat {
  * half-page vertical.
  *
  * Set the format to "fluid" for Google's native card instead, centred in the
- * same dark frame with no extra chrome of our own (its own "Sponsored"
+ * same frame with no extra chrome of our own (its own "Sponsored"
  * label and ad menu are part of the creative).
  *
  * Client-only by construction: LazyAdReel (routes/updates.tsx) mounts this
@@ -239,7 +239,7 @@ export function AdReel({
           rendered
             ? // Phones: fill the whole slot. md+: a 9:16 box capped at 420px,
               // exactly like UpdateReel's frame.
-              "relative flex h-full w-full max-w-full flex-col overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-black text-white md:aspect-[9/16] md:h-auto md:max-h-full md:max-w-[420px]"
+              "relative flex h-full w-full max-w-full flex-col overflow-hidden text-foreground md:aspect-[9/16] md:h-auto md:max-h-full md:max-w-[420px]"
             : "w-full"
         }
       >
@@ -257,7 +257,7 @@ export function AdReel({
           <span className="rounded-full bg-primary px-2 py-0.5 text-primary-foreground">
             Sponsored
           </span>
-          <span className="text-white/80">Advertisement</span>
+          <span className="text-muted-foreground">Advertisement</span>
         </div>
 
         {debug && !rendered && (
@@ -303,7 +303,7 @@ export function AdReel({
           }
           style={{ height: FOOTER_HEIGHT }}
         >
-          <span className="rounded border border-white/40 px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
+          <span className="rounded border border-border px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Ad
           </span>
         </div>
