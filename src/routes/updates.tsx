@@ -69,7 +69,7 @@ const AD_EVERY = 2;
  * Wrapper that owns an ad's slot in the snap-scroll list.
  *
  * - Lazy: the real `AdReel` is only mounted once its position scrolls
- *   within ~2 screens of view (IntersectionObserver rooted on the reel
+ *   within ~3 screens of view (IntersectionObserver rooted on the reel
  *   list), so opening the page doesn't request every ad at once.
  * - Zero-height until an ad has rendered: while the request is pending (or
  *   if it never fills) the wrapper is a plain auto-height block, which is 0px
@@ -107,7 +107,7 @@ function LazyAdReel({
           io.disconnect();
         }
       },
-      { root: scrollRootRef.current, rootMargin: "200% 0px" },
+      { root: scrollRootRef.current, rootMargin: "300% 0px" },
     );
     io.observe(el);
     return () => io.disconnect();

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
 import { readAdDebugFlag } from "@/components/ads/adDebug";
+import { useAdVisible } from "@/components/ads/useAdVisible";
 
 /**
  * ------------------------------------------------------------------
@@ -117,8 +118,8 @@ function pickAdaptiveFormat(frameWidth: number, slotHeight: number): AdFormat {
  *    and never unmounted by a timeout. An empty <ins> is naturally
  *    zero-height, so an unfilled slot leaves no blank full-screen reel and
  *    the snap list is unaffected; the full-height slot only appears once an
- *    ad has actually rendered (data-ad-status="filled" OR an ad iframe is
- *    present). A late answer still shows up.
+ *    ad has actually rendered (a sized, visible ad iframe --
+ *    see useAdVisible). A late answer still shows up.
  *  - One request per mounted <ins>; no retry loop; safe under StrictMode.
  *  - Plain banners (every mode except fluid) carry no label of their own,
  *    so ours ("Sponsored" + "Advertisement") is shown with them -- only once
@@ -151,9 +152,12 @@ export function AdReel({
   const requested = useRef(false);
   const configured = isAdSenseConfigured(slot);
   const [format, setFormat] = useState<AdFormat | null>(mode === "adaptive" ? null : mode);
-  const [rendered, setRendered] = useState(false);
+  // True only when an ad a person can SEE is in the <ins> (a sized, shown
+  // iframe) -- not merely when Google says "filled" or an iframe exists, which
+  // are true before the creative paints and when a mobile browser hides it.
+  // This is what stops a blank full-screen "Sponsored" reel appearing.
+  const { visible: rendered, detail: debugStatus } = useAdVisible(insRef);
   const [debug, setDebug] = useState(false);
-  const [debugStatus, setDebugStatus] = useState("waiting");
   const native = format === "fluid";
 
   useEffect(() => {
@@ -181,38 +185,6 @@ export function AdReel({
       console.error("AdSense push failed", error);
     }
   }, [format, configured]);
-
-  // "Has an ad actually rendered?" -- read from the real DOM (status
-  // attribute OR an <iframe> child) so it works for every format.
-  useEffect(() => {
-    const ins = insRef.current;
-    if (!ins) return;
-    let last = "";
-    const check = () => {
-      const attr = ins.getAttribute("data-ad-status") ?? "";
-      const hasIframe = !!ins.querySelector("iframe");
-      setRendered(attr === "filled" || hasIframe);
-      setDebugStatus(
-        `${attr || "no answer yet"}${hasIframe ? " + iframe" : ""} | requested: ${
-          ins.getAttribute("data-adsbygoogle-status") ? "yes" : "not yet"
-        }`,
-      );
-      const summary = `${attr || "pending"}${hasIframe ? "+iframe" : ""}`;
-      if (summary !== last && summary !== "pending") {
-        last = summary;
-        console.debug(`[AdReel] slot ${slot} (${format}) status: ${summary}`);
-      }
-    };
-    check();
-    const mo = new MutationObserver(check);
-    mo.observe(ins, {
-      attributes: true,
-      attributeFilter: ["data-ad-status", "data-adsbygoogle-status"],
-      childList: true,
-      subtree: true,
-    });
-    return () => mo.disconnect();
-  }, [slot, format, configured]);
 
   useEffect(() => {
     onRenderedChange?.(configured && rendered);

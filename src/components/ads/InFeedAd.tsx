@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
 import { readAdDebugFlag } from "@/components/ads/adDebug";
+import { useAdVisible } from "@/components/ads/useAdVisible";
 
 /**
  * ------------------------------------------------------------------
@@ -50,8 +51,9 @@ const HOME_LAYOUT_KEY = (
 
 export type InFeedAdFormat = "fluid" | "auto";
 
-/** Start the ad request when the card is this close to the viewport. */
-const REQUEST_MARGIN = "400px 0px";
+/** Start the ad request when the card is this close to the viewport (about
+ * two screens: ads take a moment to come back, so ask early, not late). */
+const REQUEST_MARGIN = "1200px 0px";
 
 /**
  * Sponsored card for the home feed.
@@ -73,7 +75,7 @@ const REQUEST_MARGIN = "400px 0px";
  *     and AdSense itself treat a hidden slot as not worth filling). An empty
  *     <ins> is naturally zero-height, so an unfilled slot leaves no gap; the
  *     card's border/header only appear once an ad has actually rendered
- *     (data-ad-status="filled" OR an ad iframe is present). A slow response
+ *     (a sized, visible ad iframe -- see useAdVisible). A slow response
  *     still appears whenever it arrives.
  *  3. Enabled only after mount (isAdSenseConfigured reads window.location),
  *     so server and client render the same HTML.
@@ -132,50 +134,19 @@ function InFeedAdUnit({
   // Guards React StrictMode's dev double-effect and any re-run: this
   // <ins> is pushed to AdSense at most once.
   const requested = useRef(false);
-  // True once Google has put an ad in the <ins>. Read from the real DOM
-  // (status attribute OR an <iframe> child) so it works for every format
-  // and never depends on one attribute being present.
-  const [rendered, setRendered] = useState(false);
+  // True only when an ad a person can SEE is in the <ins> (a sized, shown
+  // iframe) -- not merely when Google says "filled" or an iframe exists, which
+  // are true before the creative paints and when a mobile browser hides it.
+  const { visible: rendered, detail: debugStatus } = useAdVisible(insRef);
   // Debug only (?adsdebug=1): a visible placeholder where the ad goes, so
   // you can tell "the 2-posts-1-ad PLACEMENT works" apart from "Google
   // returned no ad". Normal visitors never see it.
   const [debug, setDebug] = useState(false);
-  const [debugStatus, setDebugStatus] = useState("waiting");
   const native = format === "fluid";
 
   useEffect(() => {
     setDebug(readAdDebugFlag());
   }, []);
-
-  useEffect(() => {
-    const ins = insRef.current;
-    if (!ins) return;
-    let last = "";
-    const check = () => {
-      const attr = ins.getAttribute("data-ad-status") ?? "";
-      const hasIframe = !!ins.querySelector("iframe");
-      setRendered(attr === "filled" || hasIframe);
-      setDebugStatus(
-        `${attr || "no answer yet"}${hasIframe ? " + iframe" : ""} | requested: ${
-          ins.getAttribute("data-adsbygoogle-status") ? "yes" : "not yet (scroll to it)"
-        }`,
-      );
-      const summary = `${attr || "pending"}${hasIframe ? "+iframe" : ""}`;
-      if (summary !== last && summary !== "pending") {
-        last = summary;
-        console.debug(`[InFeedAd] slot ${slot} (${format}) status: ${summary}`);
-      }
-    };
-    check();
-    const mo = new MutationObserver(check);
-    mo.observe(ins, {
-      attributes: true,
-      attributeFilter: ["data-ad-status", "data-adsbygoogle-status"],
-      childList: true,
-      subtree: true,
-    });
-    return () => mo.disconnect();
-  }, [slot, format]);
 
   useEffect(() => {
     const card = cardRef.current;

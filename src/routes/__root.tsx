@@ -98,6 +98,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      // Ads: open the connections to Google's ad servers up front. On a slow
+      // mobile connection the DNS + TCP + TLS handshakes alone can cost
+      // hundreds of ms before the first ad byte moves. (crossOrigin matches
+      // the script tag below, which is loaded with crossorigin="anonymous".)
+      {
+        rel: "preconnect",
+        href: "https://pagead2.googlesyndication.com",
+        crossOrigin: "anonymous",
+      },
+      { rel: "preconnect", href: "https://googleads.g.doubleclick.net", crossOrigin: "anonymous" },
+      { rel: "preconnect", href: "https://tpc.googlesyndication.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&display=swap",
@@ -139,46 +150,19 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
-    // FIX: load AdSense's script only once the browser is idle (or after
-    // a short fallback delay on browsers without requestIdleCallback),
-    // instead of it being a render-blocking-adjacent resource in the
-    // initial <head>. Ad units (see components/ads/AdSlot.tsx) already
-    // tolerate `adsbygoogle` not existing yet, so there's nothing for
-    // this to race against.
+    // Load AdSense's script as soon as the app has mounted. It used to wait
+    // for the browser to go idle (up to 3s) -- on a phone, with a busy feed,
+    // that delay came straight off the time before the first ad appeared.
+    // The script is async, so it doesn't block rendering or interaction, and
+    // ad units (components/ads/*) already tolerate `adsbygoogle` not existing
+    // yet (their requests queue until it arrives).
     if (document.querySelector('script[src*="adsbygoogle.js"]')) return;
-    const loadAds = () => {
-      const script = document.createElement("script");
-      script.src =
-        "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5505424042187351";
-      script.async = true;
-      script.crossOrigin = "anonymous";
-      document.head.appendChild(script);
-    };
-
-    // Feature-detect requestIdleCallback without `any` -- it's in the DOM
-    // lib but not guaranteed at runtime (Safari/older browsers don't
-    // implement it), so it's typed as optional instead of cast away.
-    type IdleWindow = Window & {
-      requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    const win = window as IdleWindow;
-    const hasIdle = typeof win.requestIdleCallback === "function";
-    const idleId: number = hasIdle
-      ? // FIX: without a timeout, requestIdleCallback may never fire on a
-        // page that is never idle (live feed, socket, animations), so the
-        // AdSense script -- and therefore every ad -- never loaded. The
-        // timeout guarantees it loads within 3s regardless.
-        win.requestIdleCallback!(loadAds, { timeout: 3000 })
-      : window.setTimeout(loadAds, 2000);
-
-    return () => {
-      if (hasIdle && typeof win.cancelIdleCallback === "function") {
-        win.cancelIdleCallback(idleId);
-      } else {
-        window.clearTimeout(idleId);
-      }
-    };
+    const script = document.createElement("script");
+    script.src =
+      "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5505424042187351";
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    document.head.appendChild(script);
   }, []);
 
   useEffect(() => {

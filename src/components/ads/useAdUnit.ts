@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useAdFillStatus, type AdFillStatus } from "@/hooks/useAdFillStatus";
+import { useAdVisible } from "@/components/ads/useAdVisible";
 
-/** Start the ad request when the unit is this close to the viewport. */
-const REQUEST_MARGIN = "400px 0px";
+/** Start the ad request when the unit is this close to the viewport (about
+ * a screen and a half: ask early so the ad is there when the reader arrives). */
+const REQUEST_MARGIN = "1000px 0px";
 /** No-fill timeout, counted from the moment the ad is requested. */
 const NO_FILL_TIMEOUT_MS = 8000;
 
@@ -81,7 +83,13 @@ export function useAdUnit<T extends HTMLElement = HTMLDivElement>() {
     height: 0,
   };
 
-  return { cardRef, insRef, status, filled: status === "filled", collapsedStyle };
+  // "filled" only once an ad a person can SEE is in the slot (see
+  // useAdVisible) -- Google's own `filled` flag can be set before the
+  // creative paints, or while a mobile browser hides it, which showed an
+  // empty card (the blank space).
+  const { visible } = useAdVisible(insRef);
+
+  return { cardRef, insRef, status, filled: visible, collapsedStyle };
 }
 
 /** Classes for the outer element while the unit is waiting for / lacks an ad. */
