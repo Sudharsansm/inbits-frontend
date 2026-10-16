@@ -51,29 +51,62 @@ const UPDATES_MODE: AdMode = VALID_MODES.includes(RAW_MODE as AdMode)
 
 /** The reel frame is never wider than this (matches UpdateReel's md:max-w-[420px]). */
 const FRAME_MAX_WIDTH = 420;
+/** Same breakpoint as the `md:` classes below: from here up the frame is a 9:16 box. */
+const DESKTOP_MIN_WIDTH = 768;
+/** Label strip above the ad and "Ad" strip below it (px). They sit beside the
+ * ad, never over it -- an ad may not be covered or cropped. */
+const HEADER_HEIGHT = 36;
+const FOOTER_HEIGHT = 28;
 /**
- * (adaptive mode) tallest standard vertical creative is 300x600, plus ~48px
- * for the label strip and ~16px of padding. Shorter screens get a medium
- * rectangle instead so an ad is never clipped.
+ * (adaptive mode) tallest standard vertical creative is 300x600. If the reel
+ * is shorter than the ad plus the two strips, a vertical ad would be cropped,
+ * so a medium rectangle is requested instead.
  */
-const MIN_FRAME_HEIGHT_FOR_VERTICAL = 600 + 48 + 16;
+const MIN_FRAME_HEIGHT_FOR_VERTICAL = 600 + HEADER_HEIGHT + FOOTER_HEIGHT;
 
-function pickAdaptiveFormat(frameWidth: number, frameHeight: number): AdFormat {
-  const width = Math.min(frameWidth, FRAME_MAX_WIDTH);
-  const height = Math.min((width * 16) / 9, frameHeight);
-  return height >= MIN_FRAME_HEIGHT_FOR_VERTICAL ? "vertical" : "rectangle";
+/**
+ * Height the reel frame will actually have. On phones the frame fills the
+ * whole snap slot; from `md` up it is a 9:16 box (like UpdateReel's), capped
+ * by the slot -- same rules as the classes in the JSX below.
+ */
+function frameHeightFor(frameWidth: number, slotHeight: number): number {
+  if (window.innerWidth >= DESKTOP_MIN_WIDTH) {
+    const width = Math.min(frameWidth, FRAME_MAX_WIDTH);
+    return Math.min((width * 16) / 9, slotHeight);
+  }
+  return slotHeight;
+}
+
+function pickAdaptiveFormat(frameWidth: number, slotHeight: number): AdFormat {
+  return frameHeightFor(frameWidth, slotHeight) >= MIN_FRAME_HEIGHT_FOR_VERTICAL
+    ? "vertical"
+    : "rectangle";
 }
 
 /**
- * A full-screen "reel" slot for the Updates feed. By default a VERTICAL
- * ad (the tallest standard AdSense shapes: 300x600, 160x600 ...) fills the
- * same frame as a real reel -- full width on phones, 420px on desktop,
- * paper background -- with a "Sponsored / Advertisement" label at the top.
- * (Full-screen 9:16 video creatives like Instagram's are not something
- * AdSense serves to websites; the tallest it offers is the half-page
- * vertical.) Set the format to "fluid" for Google's native card instead,
- * centred in the same frame with no extra chrome of our own on top of it
- * (its own "Sponsored" label and ad menu are part of the creative).
+ * A full-screen "reel" slot for the Updates feed, dressed like the reels
+ * around it (see UpdateReel): the same snap slot and the same frame (full
+ * width and height on phones, a 9:16 box capped at 420px on desktop), the
+ * same dark immersive background, the same pill + small-caps overlay
+ * language -- a "Sponsored" pill with "Advertisement" at the top-left, an
+ * "Ad" tag at the bottom-right where the reel's own meta text sits -- and
+ * by default a VERTICAL ad (the tallest standard AdSense shapes: 300x600,
+ * 160x600 ...) centred between them.
+ *
+ * What it deliberately does NOT have: the like / comment / repost / share
+ * column, follow button, engagement counts or CTA button that an Instagram
+ * Reels ad shows. Those belong to Meta's ad platform. Here the ad is a
+ * third-party creative inside Google's iframe: we have no access to its
+ * advertiser, name or counts, ad controls of our own would imitate your
+ * organic reels (and could be tapped by mistake), and invented numbers
+ * would be fabricated. The advertiser's own button, if any, is part of the
+ * creative itself. Full-screen 9:16 video creatives are likewise not
+ * something AdSense serves to websites; the tallest it offers is the
+ * half-page vertical.
+ *
+ * Set the format to "fluid" for Google's native card instead, centred in the
+ * same dark frame with no extra chrome of our own (its own "Sponsored"
+ * label and ad menu are part of the creative).
  *
  * Client-only by construction: LazyAdReel (routes/updates.tsx) mounts this
  * only after the reader scrolls near it, so it is never server-rendered or
@@ -188,14 +221,15 @@ export function AdReel({
   // Not a real, configured placement (placeholder ID / localhost): nothing.
   if (!configured) return null;
 
+  // The element tree below is identical before and after an ad renders --
+  // only classes change -- so the <ins> is never remounted (a remount would
+  // discard the ad request). Until an ad renders everything is a plain
+  // zero-height block and the strips are display:none.
   return (
     <section
       ref={cardRef}
       aria-label={rendered ? "Advertisement" : undefined}
       aria-hidden={!rendered}
-      // Until an ad renders this is a plain zero-height block (the empty
-      // <ins> has no height), so nothing is shown and nothing is hidden.
-      // Once rendered it becomes the full-height reel slot, content centred.
       className={
         rendered ? "flex h-full w-full items-center justify-center bg-paper select-none" : "w-full"
       }
@@ -203,24 +237,28 @@ export function AdReel({
       <div
         className={
           rendered
-            ? `relative w-full max-w-full overflow-hidden border-border bg-card md:max-w-[420px] md:border-x ${
-                // Banner shapes: fill the whole reel slot (label at the top,
-                // the tall ad centred in the rest), like a poster. Native
-                // cards size themselves and are centred by the section.
-                native ? "" : "flex h-full items-center justify-center px-3 pb-4 pt-12 text-center"
-              }`
+            ? // Phones: fill the whole slot. md+: a 9:16 box capped at 420px,
+              // exactly like UpdateReel's frame.
+              "relative flex h-full w-full max-w-full flex-col overflow-hidden bg-gradient-to-b from-neutral-900 via-neutral-950 to-black text-white md:aspect-[9/16] md:h-auto md:max-h-full md:max-w-[420px]"
             : "w-full"
         }
       >
-        {/* Plain banners have no label of their own -- ours, once there is a banner. */}
-        {!native && rendered && (
-          <div className="absolute left-3 top-3 z-10 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em]">
-            <span className="rounded-full bg-primary px-2 py-0.5 text-primary-foreground">
-              Sponsored
-            </span>
-            <span className="text-muted-foreground">Advertisement</span>
-          </div>
-        )}
+        {/* Top-left: the same pill + small-caps label style as a reel's
+            category line. Plain banners have no label of their own; native
+            cards bring theirs, so this is hidden for fluid. */}
+        <div
+          className={
+            rendered && !native
+              ? "flex flex-none items-center gap-2 px-5 text-[10px] uppercase tracking-[0.18em]"
+              : "hidden"
+          }
+          style={{ height: HEADER_HEIGHT }}
+        >
+          <span className="rounded-full bg-primary px-2 py-0.5 text-primary-foreground">
+            Sponsored
+          </span>
+          <span className="text-white/80">Advertisement</span>
+        </div>
 
         {debug && !rendered && (
           <div className="m-2 rounded border border-dashed border-primary/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
@@ -234,19 +272,41 @@ export function AdReel({
           </div>
         )}
 
-        {/* No padding around a native card -- the creative supplies its own
-            and runs edge to edge. overflow-hidden: clip rather than let a
-            creative widen the page. No fixed height: Google sizes the unit. */}
-        <ins
-          ref={insRef}
-          className="adsbygoogle block w-full"
-          style={{ display: "block", minWidth: 250 }}
-          data-ad-client={ADSENSE_CLIENT}
-          data-ad-slot={slot}
-          data-ad-format={format ?? undefined}
-          {...(format === "fluid" && layoutKey ? { "data-ad-layout-key": layoutKey } : {})}
-          {...(format === "auto" ? { "data-full-width-responsive": "true" } : {})}
-        />
+        {/* The ad, centred between the strips. Never covered by an overlay,
+            never scaled or cropped: overflow-hidden here only stops a
+            creative from widening the page. No fixed height -- Google sizes
+            the unit. */}
+        <div
+          className={
+            rendered
+              ? "flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 text-center"
+              : "w-full"
+          }
+        >
+          <ins
+            ref={insRef}
+            className="adsbygoogle block w-full"
+            style={{ display: "block", minWidth: 250 }}
+            data-ad-client={ADSENSE_CLIENT}
+            data-ad-slot={slot}
+            data-ad-format={format ?? undefined}
+            {...(format === "fluid" && layoutKey ? { "data-ad-layout-key": layoutKey } : {})}
+            {...(format === "auto" ? { "data-full-width-responsive": "true" } : {})}
+          />
+        </div>
+
+        {/* Bottom-right: the "Ad" tag, where Instagram (and the reel's own
+            meta line) put it. */}
+        <div
+          className={
+            rendered && !native ? "flex flex-none items-center justify-end px-5" : "hidden"
+          }
+          style={{ height: FOOTER_HEIGHT }}
+        >
+          <span className="rounded border border-white/40 px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
+            Ad
+          </span>
+        </div>
       </div>
     </section>
   );
