@@ -8,12 +8,16 @@ import { useAdVisible } from "@/components/ads/useAdVisible";
  * CONFIG (all optional -- the default slot is the one already in this repo)
  * ------------------------------------------------------------------
  *  VITE_ADSENSE_UPDATES_SLOT        numeric ad-unit ID for the Updates reels.
- *  VITE_ADSENSE_UPDATES_FORMAT      adaptive (default) | fluid | vertical |
+ *  VITE_ADSENSE_UPDATES_FORMAT      vertical (default) | fluid | adaptive |
  *                                   rectangle | auto
- *      adaptive  VERTICAL ad: a tall banner (300x600, 160x600 ...) filling
- *                the reel frame when the screen is tall enough to show it
- *                uncropped, else a medium rectangle. Needs a responsive
- *                DISPLAY ad unit.
+ *      vertical  Always a tall banner (300x600, 160x600 ...). Needs a
+ *                responsive DISPLAY ad unit. The default -- the reels feed
+ *                is a vertical, full-screen format, so the ad should read
+ *                as one too.
+ *      adaptive  Same tall banner, but only when the reel frame measures
+ *                tall enough to show it uncropped; a medium rectangle
+ *                otherwise. Set this (not vertical) if a future layout
+ *                change makes the reel frame routinely too short for 600px.
  *      fluid     Google's native Instagram-style card (advertiser logo +
  *                name, "Sponsored", menu, image, headline, heart/share).
  *                Roughly square, not tall. Needs an In-feed / native unit.
@@ -46,9 +50,17 @@ type AdFormat = "fluid" | "vertical" | "rectangle" | "auto";
 
 const VALID_MODES: AdMode[] = ["fluid", "adaptive", "vertical", "rectangle", "auto"];
 const RAW_MODE = (import.meta.env.VITE_ADSENSE_UPDATES_FORMAT as string | undefined)?.trim();
+// FIX: default changed from "adaptive" to "vertical". Adaptive requested a
+// tall 300x600-style creative only when the reel frame measured tall
+// enough, and silently fell back to a squarer "rectangle" shape otherwise
+// -- on real phones (browser chrome, installed-PWA safe-area insets, etc.
+// eating into the usable height) that fallback was firing more often than
+// not, so the reels feed read as "not vertical". Forcing "vertical" always
+// requests the tall shape; still overridable per-deploy with
+// VITE_ADSENSE_UPDATES_FORMAT if a future redesign needs adaptive back.
 const UPDATES_MODE: AdMode = VALID_MODES.includes(RAW_MODE as AdMode)
   ? (RAW_MODE as AdMode)
-  : "adaptive";
+  : "vertical";
 
 /** The reel frame is never wider than this (matches UpdateReel's md:max-w-[420px]). */
 const FRAME_MAX_WIDTH = 420;
