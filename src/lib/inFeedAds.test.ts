@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IN_FEED_AD_EVERY, adOrdinalAfter } from "./inFeedAds";
+import { IN_FEED_AD_EVERY, MAX_IN_FEED_ADS_PER_SESSION, adOrdinalAfter } from "./inFeedAds";
 
 function placements(total: number): number[] {
   const at: number[] = [];
@@ -38,5 +38,17 @@ describe("adOrdinalAfter", () => {
 
   it("returns null for an empty feed", () => {
     expect(adOrdinalAfter(0, 0)).toBeNull();
+  });
+
+  it("never places more than MAX_IN_FEED_ADS_PER_SESSION ads in one continuous scroll", () => {
+    // A very long infinite-scroll session: far more posts than the cap
+    // would otherwise produce ads for.
+    const total = (MAX_IN_FEED_ADS_PER_SESSION + 10) * IN_FEED_AD_EVERY;
+    const at = placements(total);
+    expect(at.length).toBe(MAX_IN_FEED_ADS_PER_SESSION);
+    const ordinals = at.map((i) => adOrdinalAfter(i, total));
+    expect(Math.max(...(ordinals as number[]))).toBe(MAX_IN_FEED_ADS_PER_SESSION);
+    // Beyond the cap, later posts get no trailing ad at all.
+    expect(adOrdinalAfter(total - 1, total)).toBeNull();
   });
 });
