@@ -193,19 +193,6 @@ function InFeedAdUnit({
       className={`min-h-px w-full overflow-hidden bg-paper ${
         rendered ? "border-b border-border" : ""
       }`}
-      // FIX: "an empty <ins> is naturally zero-height" (see the note above)
-      // doesn't hold for every unfilled fluid/native request. Google's
-      // in-feed sizing script can give the <ins> a real inline height --
-      // confirmed via ?adsdebug=1: "unfilled | iframe: visible 344px" --
-      // sometimes even when the request ends up unfilled, and that shows
-      // through as a blank box, more often at mobile widths than desktop.
-      // Capping max-height to 0 here (with overflow-hidden already above)
-      // clips whatever height Google's script assigns until `rendered` is
-      // actually true, the same guarantee AdSlot gets from being taken out
-      // of flow entirely. Skipped while debug is on so the placeholder
-      // block below (which deliberately shows on !rendered) stays visible
-      // for diagnosing -- normal visitors never have the flag set.
-      style={rendered || debug ? undefined : { maxHeight: 0 }}
     >
       {/* Plain banners have no label of their own, so ours stays -- but only
           once there is a banner to label. Native (fluid) creatives bring
