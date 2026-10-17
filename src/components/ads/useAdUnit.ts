@@ -4,7 +4,7 @@ import { useAdVisible } from "@/components/ads/useAdVisible";
 
 /** Start the ad request when the unit is this close to the viewport (about
  * a screen and a half: ask early so the ad is there when the reader arrives). */
-const REQUEST_MARGIN = "1000px 0px";
+const REQUEST_MARGIN = "2600px 0px";
 /** No-fill timeout, counted from the moment the ad is requested. */
 const NO_FILL_TIMEOUT_MS = 8000;
 

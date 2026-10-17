@@ -53,7 +53,7 @@ export type InFeedAdFormat = "fluid" | "auto";
 
 /** Start the ad request when the card is this close to the viewport (about
  * two screens: ads take a moment to come back, so ask early, not late). */
-const REQUEST_MARGIN = "1200px 0px";
+const REQUEST_MARGIN = "2600px 0px";
 
 /**
  * Sponsored card for the home feed.
