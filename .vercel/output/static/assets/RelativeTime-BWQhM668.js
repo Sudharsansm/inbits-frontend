@@ -1,0 +1,1 @@
+import{r as a,H as t,j as i}from"./index-B9f494Px.js";function c({iso:e,className:s}){const[n,r]=a.useState(()=>t(e));return a.useEffect(()=>{r(t(e));const l=setInterval(()=>r(t(e)),6e4);return()=>clearInterval(l)},[e]),i.jsx("span",{suppressHydrationWarning:!0,className:s,children:n})}export{c as R};
