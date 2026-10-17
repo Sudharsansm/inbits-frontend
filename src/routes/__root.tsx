@@ -15,7 +15,7 @@ import { reportAppError } from "../lib/error-reporting";
 import { SavedPostsProvider } from "../lib/savedPosts";
 import { InstallGateProvider } from "../lib/installGate";
 import { ArticleViewerProvider } from "../lib/articleViewer";
-import { AdDebugPanel } from "../components/ads/adDebugPanel";
+import { AdDebugPanel } from "../components/ads/AdDebugPanel";
 // Side-effect only: attaches the beforeinstallprompt listener as soon as
 // this module loads, not only once the install modal happens to mount.
 // See installPromptStore.ts for why that timing matters.
