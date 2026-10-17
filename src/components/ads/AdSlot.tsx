@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { COLLAPSED_CLASS, useAdUnit } from "@/components/ads/useAdUnit";
+import { readAdDebugFlag } from "@/components/ads/adDebug";
 
 /**
  * ------------------------------------------------------------------
@@ -99,12 +100,55 @@ function AdSlotInner({
   // it is false on the server and true on the client -- rendering the
   // card straight away would make server and client HTML disagree.
   const [enabled, setEnabled] = useState(false);
+  // FIX: on localhost / with a placeholder slot, this component used to
+  // just return null everywhere -- every AdSlot-based page (Jobs, Search,
+  // Job/Post detail, Stands tabs, Showcase) looked like it had no ad
+  // placements at all, with no way to tell "not configured yet" apart
+  // from "the spacing logic above this component is wrong". Same opt-in
+  // debug switch InFeedAd already uses on the home feed (?adsdebug=1,
+  // kept in localStorage): shows a clearly-labelled dashed placeholder
+  // card instead of an ad. Normal visitors never see it, and it never
+  // triggers a real request to Google.
+  const [debug, setDebug] = useState(false);
+
   useEffect(() => {
     setEnabled(isAdSenseConfigured(slot));
+    setDebug(readAdDebugFlag());
   }, [slot]);
 
-  if (!enabled) return null;
+  if (!enabled) {
+    if (!debug) return null;
+    return <AdSlotDebugPlaceholder slot={slot} label={label} className={className} />;
+  }
   return <AdSlotUnit slot={slot} className={className} label={label} format={format} />;
+}
+
+/** Debug-only stand-in (?adsdebug=1): shows where this AdSlot sits in the
+ * page without requesting real inventory -- lets you confirm the N-items
+ * cadence (Jobs: every 4th, etc.) visually on localhost or an unverified
+ * domain, where a real request would be rejected by AdSense anyway. */
+function AdSlotDebugPlaceholder({
+  slot,
+  label,
+  className,
+}: {
+  slot: string;
+  label: string;
+  className: string;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`mb-4 rounded-xl border border-dashed border-primary/60 bg-card px-3 py-2 text-[11px] leading-snug text-muted-foreground ${className}`}
+    >
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.18em]">
+        <span>{label}</span>
+        <span>Advertisement</span>
+      </div>
+      <div className="mt-1 font-semibold text-foreground">Ad slot (debug)</div>
+      <div>unit {slot} -- not requested (unconfigured host/slot)</div>
+    </div>
+  );
 }
 
 function AdSlotUnit({
