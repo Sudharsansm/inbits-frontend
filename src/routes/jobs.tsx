@@ -91,7 +91,7 @@ function Jobs() {
                     separate performance reporting for this surface.
                     Wrapped in its own <li> — AdSlot's root is a <div>,
                     and this list's children must all be <li> elements. */}
-                {idx > 0 && idx % 4 === 0 && (
+                {idx > 0 && idx % 2 === 0 && (
                   <li className="list-none">
                     <AdSlot slot="6051024090" label="Sponsored" />
                   </li>

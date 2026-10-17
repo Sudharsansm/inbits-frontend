@@ -60,10 +60,12 @@ export const Route = createFileRoute("/updates")({
 let savedScrollTop = 0;
 
 /** One ad reel before every Nth reel, so N organic reels sit between ads:
- * 2 -> reel, reel, ad, reel, reel, ad ... Raise it (3-5) to show fewer ads --
- * full-screen ads are the most intrusive placement in the app, and 2 is the
- * densest setting AdSense's "excessive ads" review is likely to tolerate. */
-const AD_EVERY = 2;
+ * 3 -> reel, reel, reel, ad, reel, reel, reel, ad ... (3 organic : 1 ad).
+ * Raise it further to show fewer ads -- full-screen ads are the most
+ * intrusive placement in the app, so don't drop this back toward 2 without
+ * a reason; AdSense's "excessive ads" review treats dense full-screen
+ * interstitials as the first thing to flag. */
+const AD_EVERY = 3;
 
 /**
  * Wrapper that owns an ad's slot in the snap-scroll list.
