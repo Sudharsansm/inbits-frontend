@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FeedItem } from "@/lib/api";
 import { useArticleViewer } from "@/lib/articleViewer";
 import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
+import { readAdDebugFlag } from "@/components/ads/adDebug";
 import { useAdFillStatus, type AdFillStatus } from "@/hooks/useAdFillStatus";
 import { useTranslatedById } from "@/lib/i18n";
 
@@ -116,6 +117,37 @@ function SponsoredSlide({
   );
 }
 
+/**
+ * Debug-only stand-in (?adsdebug=1): shown in place of SponsoredSlide
+ * when the slot isn't actually configured yet (localhost, or a
+ * placeholder slot id -- see isAdSenseConfigured in AdSlot.tsx). Without
+ * this, the trending carousel on Stands silently dropped the sponsored
+ * slide and its pagination dot entirely, which looked like "the ad never
+ * shows here" rather than "this is the normal unconfigured-host state".
+ * Static (no AdSense request, no fill/timeout logic) -- it only confirms
+ * the ROTATION includes a 6th, ad slide at the right position. Normal
+ * visitors never see it.
+ */
+function SponsoredSlideDebug({ slot }: { slot: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`relative flex items-center justify-center border border-dashed border-primary/60 bg-card ${SLIDE_BOX}`}
+    >
+      <span className="absolute left-3 top-3 z-10 inline-flex items-center rounded bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-primary-foreground">
+        Sponsored
+      </span>
+      <span className="absolute bottom-2 right-3 z-10 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        Advertisement
+      </span>
+      <div className="px-4 text-center text-[11px] leading-snug text-muted-foreground">
+        <div className="font-semibold text-foreground">Trending ad slide (debug)</div>
+        <div>slot {slot} -- not requested (unconfigured host/slot)</div>
+      </div>
+    </div>
+  );
+}
+
 /** Auto-rotating trending slot — the most-read-looking live stories right
  * now (longest read time as a proxy for "substantial story"), not a
  * separate curated/mock set, so every slide links to a real article.
@@ -131,18 +163,24 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
   // Decided after mount so server and client render the same HTML
   // (isAdSenseConfigured depends on window.location).
   const [adEnabled, setAdEnabled] = useState(false);
+  const [adDebug, setAdDebug] = useState(false);
   const adSlot = TRENDING_SLOT || DEFAULT_TRENDING_SLOT;
   useEffect(() => {
     setAdEnabled(isAdSenseConfigured(adSlot));
+    setAdDebug(readAdDebugFlag());
   }, [adSlot]);
   const [adStatus, setAdStatus] = useState<AdFillStatus>("pending");
   // The ad is part of the rotation unless Google said (or implied, by
   // timing out) that there is nothing to show.
   const showAd = adEnabled && slides.length > 0 && adStatus !== "unfilled";
-  const slideCount = slides.length + (showAd ? 1 : 0);
+  // Debug-only placeholder (?adsdebug=1): only when there's no real ad to
+  // show, so it never displaces an actual ad once one is configured.
+  const showDebugAd = !adEnabled && adDebug && slides.length > 0;
+  const hasAdSlide = showAd || showDebugAd;
+  const slideCount = slides.length + (hasAdSlide ? 1 : 0);
   const [i, setI] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
-  const onAdSlide = showAd && i === slides.length;
+  const onAdSlide = hasAdSlide && i === slides.length;
 
   // If the ad slide drops out while it is the current one, go back to the first.
   useEffect(() => {
@@ -215,6 +253,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
             onStatusChange={setAdStatus}
           />
         )}
+        {showDebugAd && <SponsoredSlideDebug slot={adSlot} />}
       </div>
       <div className="mt-2.5 flex justify-center gap-1.5">
         {slides.map((s, idx) => (
@@ -225,7 +264,7 @@ export function TrendingCarousel({ items }: { items: FeedItem[] }) {
             className={`h-1.5 rounded-full transition-all ${idx === i ? "w-5 bg-primary" : "w-1.5 bg-border"}`}
           />
         ))}
-        {showAd && (
+        {hasAdSlide && (
           <button
             aria-label="Go to sponsored slide"
             onClick={() => setI(slides.length)}
