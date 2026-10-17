@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
+import { readAdDebugFlag } from "@/components/ads/adDebug";
 import { COLLAPSED_CLASS, useAdUnit } from "@/components/ads/useAdUnit";
 
 /**
@@ -26,12 +27,42 @@ export function NotificationAd({ slot = "6413880979" }: { slot?: string }) {
   // Decided after mount (isAdSenseConfigured reads window.location), so
   // server and client render the same HTML.
   const [enabled, setEnabled] = useState(false);
+  // FIX: this was the one ad surface with no ?adsdebug=1 fallback -- on
+  // an unconfigured host it just returned null, same as a normal
+  // visitor, with no way to tell "this row's placement is wrong" apart
+  // from "ads aren't configured yet here" (which is expected locally).
+  const [debug, setDebug] = useState(false);
   useEffect(() => {
     setEnabled(isAdSenseConfigured(slot));
+    setDebug(readAdDebugFlag());
   }, [slot]);
 
-  if (!enabled) return null;
+  if (!enabled) {
+    if (!debug) return null;
+    return <NotificationAdDebugRow slot={slot} />;
+  }
   return <NotificationAdUnit slot={slot} />;
+}
+
+/** Debug-only stand-in (?adsdebug=1): confirms the "every 8th row" slot
+ * fires in the right place without requesting a real ad. Normal visitors
+ * never see it. */
+function NotificationAdDebugRow({ slot }: { slot: string }) {
+  return (
+    <li aria-hidden="true" className="py-4">
+      <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <Megaphone className="h-3.5 w-3.5" />
+          Sponsored
+        </span>
+        <span className="font-normal">Advertisement</span>
+      </div>
+      <div className="w-full rounded-lg border border-dashed border-primary/60 bg-secondary/30 px-3 py-3 text-center text-[11px] leading-snug text-muted-foreground">
+        <div className="font-semibold text-foreground">Notification ad row (debug)</div>
+        <div>slot {slot} -- not requested (unconfigured host/slot)</div>
+      </div>
+    </li>
+  );
 }
 
 function NotificationAdUnit({ slot }: { slot: string }) {
