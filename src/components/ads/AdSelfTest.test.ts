@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { detectBrowser, runAdSelfTest } from "./adSelfTest";
+import { detectBrowser, runAdSelfTest } from "./AdSelfTest";
 
 function stubBaitHeight(height: number) {
   Object.defineProperty(HTMLElement.prototype, "offsetHeight", {

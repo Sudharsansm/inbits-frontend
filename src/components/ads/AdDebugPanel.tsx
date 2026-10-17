@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { clearAdDebugFlag, readAdDebugFlag } from "@/components/ads/adDebug";
-import { runAdSelfTest, type SelfTestResult } from "@/components/ads/adSelfTest";
+import { runAdSelfTest, type SelfTestResult } from "@/components/ads/AdSelfTest";
 
 /**
  * On-screen AdSense diagnostics for phones and the installed (PWA) app,
