@@ -58,17 +58,13 @@ const HOME_FORMAT: InFeedAdFormat =
   (import.meta.env.VITE_ADSENSE_HOME_FORMAT as string | undefined)?.trim() === "auto"
     ? "auto"
     : "fluid";
-/** FIX: an in-feed ("fluid") ad unit needs its data-ad-layout-key or Google
- * commonly answers "unfilled". The version of this app that was serving ads
- * sent "-fb+5w+4e-db+86" with fluid; that key was dropped in a later rewrite
- * and the home feed has requested fluid with no key since. Restored as the
- * default. If your In-feed unit's own snippet (AdSense > Ads > By ad unit >
- * Get code) shows a different data-ad-layout-key, set
- * VITE_ADSENSE_HOME_LAYOUT_KEY to that value and redeploy. */
-const DEFAULT_HOME_LAYOUT_KEY = "-fb+5w+4e-db+86";
-const HOME_LAYOUT_KEY =
-  (import.meta.env.VITE_ADSENSE_HOME_LAYOUT_KEY as string | undefined)?.trim() ||
-  DEFAULT_HOME_LAYOUT_KEY;
+/** No default layout key: the home unit (6413880979) served fine as a plain
+ * fluid unit with data-full-width-responsive="true" and NO layout key (see
+ * the original NativeHomeAd). Only set VITE_ADSENSE_HOME_LAYOUT_KEY if the
+ * unit's own snippet (AdSense > Ads > By ad unit > Get code) shows one. */
+const HOME_LAYOUT_KEY = (
+  import.meta.env.VITE_ADSENSE_HOME_LAYOUT_KEY as string | undefined
+)?.trim();
 
 export type InFeedAdFormat = "fluid" | "auto";
 
@@ -273,11 +269,11 @@ function InFeedAdUnit({
           data-ad-client={ADSENSE_CLIENT}
           data-ad-slot={slot}
           data-ad-format={format}
-          {...(native
-            ? layoutKey
-              ? { "data-ad-layout-key": layoutKey }
-              : {}
-            : { "data-full-width-responsive": "true" })}
+          // Same attributes the originally-working home ad sent:
+          // fluid + full-width-responsive (and a layout key only if one
+          // was configured for this unit).
+          data-full-width-responsive="true"
+          {...(native && layoutKey ? { "data-ad-layout-key": layoutKey } : {})}
         />
       </div>
     </article>
