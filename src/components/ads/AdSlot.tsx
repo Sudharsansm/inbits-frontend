@@ -65,11 +65,19 @@ export function isAdSenseConfigured(slot: string): boolean {
   return !isPlaceholderSlot(slot) && !isLikelyUnservableHost();
 }
 
-/** In-feed layout key these units were serving with before the 14-15 Oct
- * rewrite (AdSlot used fluid + this key from 3 Sep until the "fix ad
- * formats" commit switched it to auto/horizontal, after which these
- * surfaces stopped filling). Restored as the default. */
-const AD_LAYOUT_KEY = "-fb+5w+4e-db+86";
+/**
+ * Each page passes its own ad unit ID (see the AdSense dashboard names:
+ * Channel page, Stands channels, Stands journal, Search discover grid,
+ * Search results, Article bottom). They are requested as standard
+ * RESPONSIVE DISPLAY units (data-ad-format="auto" +
+ * data-full-width-responsive), the same kind of unit that already serves
+ * on the Updates reel.
+ *
+ * Emergency switch: set VITE_ADSENSE_SHARED_SLOT=<unit id> in Vercel
+ * (e.g. 6413880979) and every AdSlot will use that one unit as an in-feed
+ * (fluid) ad instead of its own. Leave it unset for normal operation.
+ */
+const SHARED_SLOT = (import.meta.env.VITE_ADSENSE_SHARED_SLOT as string | undefined)?.trim() || "";
 
 export type AdSlotFormat = "fluid" | "horizontal" | "rectangle" | "auto";
 
@@ -82,18 +90,14 @@ export type AdSlotFormat = "fluid" | "horizontal" | "rectangle" | "auto";
  * the viewport; invisible and out of the layout until Google reports the
  * ad as filled; never unmounted by a timeout).
  *
- * `format` defaults to "fluid" (the in-feed native format, sent with the
- * in-feed layout key above) -- the format these units served with when
- * ads were working. Use "auto" for a slot that sits in a card-shaped
- * container (e.g. the sideways-scrolling Stands showcase row), or
- * "horizontal" / "rectangle" only for units created as responsive
- * Display units.
+ * `format` defaults to "auto" (responsive Display). "horizontal" /
+ * "rectangle" are for units created with that exact shape.
  */
 function AdSlotInner({
-  slot,
+  slot: slotProp,
   className = "",
   label = "Sponsored",
-  format = "fluid",
+  format: formatProp = "auto",
 }: {
   /** Numeric ad unit ID from the AdSense dashboard. */
   slot: string;
@@ -107,6 +111,9 @@ function AdSlotInner({
   // it is false on the server and true on the client -- rendering the
   // card straight away would make server and client HTML disagree.
   const [enabled, setEnabled] = useState(false);
+  // Own unit + format, unless the emergency shared-unit switch is set.
+  const slot = SHARED_SLOT || slotProp;
+  const format: AdSlotFormat = SHARED_SLOT ? "fluid" : formatProp;
   // FIX: on localhost / with a placeholder slot, this component used to
   // just return null everywhere -- every AdSlot-based page (Jobs, Search,
   // Job/Post detail, Stands tabs, Showcase) looked like it had no ad
@@ -202,8 +209,9 @@ function AdSlotUnit({
           data-ad-client={ADSENSE_CLIENT}
           data-ad-slot={slot}
           data-ad-format={format}
-          {...(format === "auto" ? { "data-full-width-responsive": "true" } : {})}
-          {...(format === "fluid" ? { "data-ad-layout-key": AD_LAYOUT_KEY } : {})}
+          {...(format === "auto" || format === "fluid"
+            ? { "data-full-width-responsive": "true" }
+            : {})}
         />
       </div>
     </div>
