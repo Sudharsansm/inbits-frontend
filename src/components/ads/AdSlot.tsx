@@ -68,9 +68,9 @@ export function isAdSenseConfigured(slot: string): boolean {
 /**
  * Each page passes its own ad unit ID (see the AdSense dashboard names:
  * Channel page, Stands channels, Stands journal, Search discover grid,
- * Search results, Article bottom). They are requested as standard
- * RESPONSIVE DISPLAY units (data-ad-format="auto" +
- * data-full-width-responsive), the same kind of unit that already serves
+ * Search results, Article bottom). They are requested as HORIZONTAL
+ * banner-style Display ads (data-ad-format="horizontal": ~320x100 on a
+ * phone, 728x90 on desktop), the same kind of unit that already serves
  * on the Updates reel.
  *
  * Emergency switch: set VITE_ADSENSE_SHARED_SLOT=<unit id> in Vercel
@@ -90,14 +90,14 @@ export type AdSlotFormat = "fluid" | "horizontal" | "rectangle" | "auto";
  * the viewport; invisible and out of the layout until Google reports the
  * ad as filled; never unmounted by a timeout).
  *
- * `format` defaults to "auto" (responsive Display). "horizontal" /
- * "rectangle" are for units created with that exact shape.
+ * `format` defaults to "horizontal". Use "auto" for a slot that sits in a
+ * card-shaped container (e.g. the sideways-scrolling Stands row).
  */
 function AdSlotInner({
   slot: slotProp,
   className = "",
   label = "Sponsored",
-  format: formatProp = "auto",
+  format: formatProp = "horizontal",
 }: {
   /** Numeric ad unit ID from the AdSense dashboard. */
   slot: string;

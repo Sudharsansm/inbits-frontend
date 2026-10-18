@@ -8,7 +8,7 @@ function placements(total: number): number[] {
 }
 
 describe("adOrdinalAfter", () => {
-  it("is configured for 2 posts then 1 ad", () => {
+  it("is configured for 4 posts then 1 ad", () => {
     expect(IN_FEED_AD_EVERY).toBe(4);
   });
 
