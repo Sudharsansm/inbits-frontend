@@ -1,9 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useAdFillStatus, type AdFillStatus } from "@/hooks/useAdFillStatus";
 import { useAdVisible } from "@/components/ads/useAdVisible";
+import { queueAdRequest } from "@/components/ads/requestAdSlot";
 
-/** Start the ad request when the unit is this close to the viewport (about
- * a screen and a half: ask early so the ad is there when the reader arrives). */
+/** Start the ad request when the unit is this close to the viewport.
+ * FIX: was "1000px 0px" (~1.5 screens) -- on a normal scroll speed that
+ * barely gave Google's ad server time to answer before the reader actually
+ * reached the slot, so it visibly popped in late (or was still collapsed
+ * when it scrolled by). Widened to ~4 screens so the request is in flight
+ * well before the slot is on screen; the request itself is still one-shot
+ * and harmless to fire early (useAdUnit's `requested` ref guards against a
+ * second push if the observer re-fires). */
 const REQUEST_MARGIN = "2600px 0px";
 /** No-fill timeout, counted from the moment the ad is requested. */
 const NO_FILL_TIMEOUT_MS = 8000;
@@ -13,16 +20,15 @@ const NO_FILL_TIMEOUT_MS = 8000;
  * (AdSlot, NotificationAd). Behaviour:
  *
  *  - ONE AdSense request per mounted <ins>, made when the unit scrolls
- *    within ~400px of the viewport -- not for every ad in a long list
- *    the moment the page opens. No retry loop; safe under StrictMode.
+ *    near the viewport -- not for every ad in a long list the moment the
+ *    page opens. No retry loop; safe under StrictMode.
  *  - The unit stays *mounted* the whole time. Until Google reports
  *    `filled` it is rendered "collapsed": out of the layout flow
  *    (absolute, zero height, invisible) but with the same width the real
- *    unit will have, which is what AdSense needs to size a horizontal
- *    creative. So the list never shows an empty "Sponsored" box, a late
- *    answer still appears (the old code unmounted after a 4s timer and
- *    threw it away), and a collapsed unit doesn't disturb flex / grid /
- *    column layouts.
+ *    unit will have, which is what AdSense needs to size a creative. So
+ *    the list never shows an empty "Sponsored" box, a late answer still
+ *    appears (the old code unmounted after a 4s timer and threw it away),
+ *    and a collapsed unit doesn't disturb flex / grid / column layouts.
  *
  * Usage: attach `cardRef` to the outermost element, `insRef` to the
  * <ins>, spread `collapsedStyle` on the outer element while !filled.
@@ -48,17 +54,23 @@ export function useAdUnit<T extends HTMLElement = HTMLDivElement>() {
     if (!card) return;
 
     const request = () => {
-      const ins = insRef.current;
-      if (!ins || requested.current) return;
+      if (requested.current) return;
       requested.current = true; // set first: no retry even if push throws
       setArmed(true);
-      // Google stamps processed units; pushing one again throws.
-      if (ins.getAttribute("data-adsbygoogle-status")) return;
-      try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-      } catch (error) {
-        console.error("AdSense push failed", error);
-      }
+      // Staggered: avoids several same-slot-ID units (common in a long
+      // list) pushing to adsbygoogle in the same instant, which Google
+      // tends to answer with "filled" for only the first of the burst.
+      queueAdRequest(() => {
+        const ins = insRef.current;
+        if (!ins) return;
+        // Google stamps processed units; pushing one again throws.
+        if (ins.getAttribute("data-adsbygoogle-status")) return;
+        try {
+          (window.adsbygoogle = window.adsbygoogle || []).push({});
+        } catch (error) {
+          console.error("AdSense push failed", error);
+        }
+      });
     };
 
     if (typeof IntersectionObserver === "undefined") {

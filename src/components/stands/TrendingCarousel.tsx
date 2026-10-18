@@ -11,20 +11,25 @@ import { useTranslatedById } from "@/lib/i18n";
  * CONFIG (all optional -- the default is the slot already in this repo)
  * ------------------------------------------------------------------
  *  VITE_ADSENSE_TRENDING_SLOT    numeric ad-unit ID for the sponsored slide.
- *  VITE_ADSENSE_TRENDING_FORMAT  "horizontal" (default) | "rectangle" | "auto".
+ *  VITE_ADSENSE_TRENDING_FORMAT  "fluid" (default) | "horizontal" | "rectangle" | "auto".
  *
- * The slide is a fixed-height strip (same height as the story slides), so
- * the default asks Google for a *horizontal* creative (e.g. 320x100 on a
- * phone, 728x90 on desktop), which fits inside it without being cropped.
- * Requires a responsive Display unit. Baked in at build time -- redeploy
- * after changing.
+ * The slide reuses the home in-feed unit (6413880979), which serves as a
+ * fluid + full-width-responsive unit, so "fluid" is the default. Use
+ * "horizontal" / "rectangle" only if you point VITE_ADSENSE_TRENDING_SLOT
+ * at a responsive Display unit. Baked in at build time -- redeploy after
+ * changing.
  * ------------------------------------------------------------------
  */
 const DEFAULT_TRENDING_SLOT = "6413880979";
 const TRENDING_SLOT = (import.meta.env.VITE_ADSENSE_TRENDING_SLOT as string | undefined)?.trim();
 const RAW_FORMAT = (import.meta.env.VITE_ADSENSE_TRENDING_FORMAT as string | undefined)?.trim();
-const TRENDING_FORMAT: "horizontal" | "rectangle" | "auto" =
-  RAW_FORMAT === "rectangle" || RAW_FORMAT === "auto" ? RAW_FORMAT : "horizontal";
+// Default "fluid": this slide reuses the home in-feed unit (6413880979),
+// which serves as fluid + full-width-responsive. Asking that unit for
+// "horizontal" is a format mismatch Google answers with no ad.
+const TRENDING_FORMAT: "fluid" | "horizontal" | "rectangle" | "auto" =
+  RAW_FORMAT === "horizontal" || RAW_FORMAT === "rectangle" || RAW_FORMAT === "auto"
+    ? RAW_FORMAT
+    : "fluid";
 
 /** How long a story slide stays up, and how long the ad slide does (it
  * needs time to load and to actually be seen). */
@@ -110,7 +115,9 @@ function SponsoredSlide({
           data-ad-client={ADSENSE_CLIENT}
           data-ad-slot={slot}
           data-ad-format={TRENDING_FORMAT}
-          {...(TRENDING_FORMAT === "auto" ? { "data-full-width-responsive": "true" } : {})}
+          {...(TRENDING_FORMAT === "auto" || TRENDING_FORMAT === "fluid"
+            ? { "data-full-width-responsive": "true" }
+            : {})}
         />
       </div>
     </div>
