@@ -65,28 +65,35 @@ export function isAdSenseConfigured(slot: string): boolean {
   return !isPlaceholderSlot(slot) && !isLikelyUnservableHost();
 }
 
-export type AdSlotFormat = "horizontal" | "rectangle" | "auto";
+/** In-feed layout key these units were serving with before the 14-15 Oct
+ * rewrite (AdSlot used fluid + this key from 3 Sep until the "fix ad
+ * formats" commit switched it to auto/horizontal, after which these
+ * surfaces stopped filling). Restored as the default. */
+const AD_LAYOUT_KEY = "-fb+5w+4e-db+86";
+
+export type AdSlotFormat = "fluid" | "horizontal" | "rectangle" | "auto";
 
 /**
  * A sponsored card for lists and pages (search, jobs, channels, journal,
- * showcase, job / post detail). Shows a *horizontal* banner-style creative
- * (320x100 on a phone, 728x90 on desktop) inside a card that matches the
- * app's other cards, clearly labelled "Sponsored" / "Advertisement".
+ * showcase, job / post detail), inside a card that matches the app's
+ * other cards, clearly labelled "Sponsored" / "Advertisement".
  *
  * Request / collapse behaviour lives in useAdUnit (one request, made near
  * the viewport; invisible and out of the layout until Google reports the
  * ad as filled; never unmounted by a timeout).
  *
- * `format` defaults to "horizontal". Use "auto" for a slot that sits in a
- * card-shaped container (e.g. the sideways-scrolling Stands showcase row).
- * The unit must be a responsive Display unit for "horizontal" to be
- * honoured.
+ * `format` defaults to "fluid" (the in-feed native format, sent with the
+ * in-feed layout key above) -- the format these units served with when
+ * ads were working. Use "auto" for a slot that sits in a card-shaped
+ * container (e.g. the sideways-scrolling Stands showcase row), or
+ * "horizontal" / "rectangle" only for units created as responsive
+ * Display units.
  */
 function AdSlotInner({
   slot,
   className = "",
   label = "Sponsored",
-  format = "horizontal",
+  format = "fluid",
 }: {
   /** Numeric ad unit ID from the AdSense dashboard. */
   slot: string;
@@ -196,6 +203,7 @@ function AdSlotUnit({
           data-ad-slot={slot}
           data-ad-format={format}
           {...(format === "auto" ? { "data-full-width-responsive": "true" } : {})}
+          {...(format === "fluid" ? { "data-ad-layout-key": AD_LAYOUT_KEY } : {})}
         />
       </div>
     </div>
