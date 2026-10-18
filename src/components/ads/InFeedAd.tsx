@@ -10,9 +10,6 @@ import { queueAdRequest } from "@/components/ads/requestAdSlot";
  * CONFIG (all optional -- the defaults are the values already in this repo)
  * ------------------------------------------------------------------
  *  VITE_ADSENSE_HOME_SLOT        numeric ad-unit ID of the home in-feed unit
- *  VITE_ADSENSE_HOME_SLOTS       optional comma-separated list of in-feed
- *                                ad-unit IDs, e.g. "111,222,333". Ads rotate
- *                                through them by position. Unset = single slot.
  *  VITE_ADSENSE_HOME_FORMAT      "fluid" (default) | "auto"
  *                                  fluid = Google's NATIVE in-feed creative:
  *                                  advertiser logo + name, "Sponsored", the
@@ -61,9 +58,17 @@ const HOME_FORMAT: InFeedAdFormat =
   (import.meta.env.VITE_ADSENSE_HOME_FORMAT as string | undefined)?.trim() === "auto"
     ? "auto"
     : "fluid";
-const HOME_LAYOUT_KEY = (
-  import.meta.env.VITE_ADSENSE_HOME_LAYOUT_KEY as string | undefined
-)?.trim();
+/** FIX: an in-feed ("fluid") ad unit needs its data-ad-layout-key or Google
+ * commonly answers "unfilled". The version of this app that was serving ads
+ * sent "-fb+5w+4e-db+86" with fluid; that key was dropped in a later rewrite
+ * and the home feed has requested fluid with no key since. Restored as the
+ * default. If your In-feed unit's own snippet (AdSense > Ads > By ad unit >
+ * Get code) shows a different data-ad-layout-key, set
+ * VITE_ADSENSE_HOME_LAYOUT_KEY to that value and redeploy. */
+const DEFAULT_HOME_LAYOUT_KEY = "-fb+5w+4e-db+86";
+const HOME_LAYOUT_KEY =
+  (import.meta.env.VITE_ADSENSE_HOME_LAYOUT_KEY as string | undefined)?.trim() ||
+  DEFAULT_HOME_LAYOUT_KEY;
 
 export type InFeedAdFormat = "fluid" | "auto";
 
@@ -119,8 +124,8 @@ export function InFeedAd({
   format?: InFeedAdFormat;
   /** `data-ad-layout-key` of an In-feed unit (fluid only). */
   layoutKey?: string;
-  /** 1-based position of this ad in the feed; used to rotate between
-   * ad units and to label the debug placeholder (?adsdebug=1). */
+  /** 1-based position of this ad in the feed; only used to label the
+   * debug placeholder (?adsdebug=1). */
   ordinal?: number;
 }) {
   const slot = slotProp ?? pickHomeSlot(ordinal);
@@ -161,8 +166,8 @@ function InFeedAdUnit({
   // are true before the creative paints and when a mobile browser hides it.
   const { visible: rendered, detail: debugStatus } = useAdVisible(insRef);
   // Debug only (?adsdebug=1): a visible placeholder where the ad goes, so
-  // you can tell "the ad PLACEMENT works" apart from "Google returned no
-  // ad". Normal visitors never see it.
+  // you can tell "the 2-posts-1-ad PLACEMENT works" apart from "Google
+  // returned no ad". Normal visitors never see it.
   const [debug, setDebug] = useState(false);
   const native = format === "fluid";
 
