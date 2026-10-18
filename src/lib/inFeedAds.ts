@@ -12,7 +12,7 @@
  *  - never after the very last post, so the feed never ends on an ad with
  *    no organic content below it.
  */
-export const IN_FEED_AD_EVERY = 2;
+export const IN_FEED_AD_EVERY = 4;
 
 /**
  * Returns the 1-based ordinal of the ad that should render right after

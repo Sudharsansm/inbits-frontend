@@ -9,7 +9,7 @@ function placements(total: number): number[] {
 
 describe("adOrdinalAfter", () => {
   it("is configured for 2 posts then 1 ad", () => {
-    expect(IN_FEED_AD_EVERY).toBe(2);
+    expect(IN_FEED_AD_EVERY).toBe(4);
   });
 
   it("places the first ad after the Nth post and nothing before it", () => {

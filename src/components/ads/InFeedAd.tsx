@@ -3,12 +3,16 @@ import { Megaphone } from "lucide-react";
 import { ADSENSE_CLIENT, isAdSenseConfigured } from "@/components/ads/AdSlot";
 import { readAdDebugFlag } from "@/components/ads/adDebug";
 import { useAdVisible } from "@/components/ads/useAdVisible";
+import { queueAdRequest } from "@/components/ads/requestAdSlot";
 
 /**
  * ------------------------------------------------------------------
  * CONFIG (all optional -- the defaults are the values already in this repo)
  * ------------------------------------------------------------------
  *  VITE_ADSENSE_HOME_SLOT        numeric ad-unit ID of the home in-feed unit
+ *  VITE_ADSENSE_HOME_SLOTS       optional comma-separated list of in-feed
+ *                                ad-unit IDs, e.g. "111,222,333". Ads rotate
+ *                                through them by position. Unset = single slot.
  *  VITE_ADSENSE_HOME_FORMAT      "fluid" (default) | "auto"
  *                                  fluid = Google's NATIVE in-feed creative:
  *                                  advertiser logo + name, "Sponsored", the
@@ -41,6 +45,18 @@ import { useAdVisible } from "@/components/ads/useAdVisible";
  */
 const DEFAULT_HOME_SLOT = "6413880979";
 const HOME_SLOT = (import.meta.env.VITE_ADSENSE_HOME_SLOT as string | undefined)?.trim();
+/** Optional: comma-separated list of in-feed ad unit IDs (all must be In-feed /
+ * fluid units). Ads rotate through them by position so one unit ID is not
+ * requested over and over in a single page view. Unset = single slot. */
+const HOME_SLOTS = ((import.meta.env.VITE_ADSENSE_HOME_SLOTS as string | undefined) ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter((s) => /^\d+$/.test(s));
+
+function pickHomeSlot(ordinal?: number): string {
+  if (HOME_SLOTS.length > 0) return HOME_SLOTS[((ordinal ?? 1) - 1) % HOME_SLOTS.length];
+  return HOME_SLOT || DEFAULT_HOME_SLOT;
+}
 const HOME_FORMAT: InFeedAdFormat =
   (import.meta.env.VITE_ADSENSE_HOME_FORMAT as string | undefined)?.trim() === "auto"
     ? "auto"
@@ -51,8 +67,13 @@ const HOME_LAYOUT_KEY = (
 
 export type InFeedAdFormat = "fluid" | "auto";
 
-/** Start the ad request when the card is this close to the viewport (about
- * two screens: ads take a moment to come back, so ask early, not late). */
+/** Start the ad request when the card is this close to the viewport.
+ * FIX: was "1200px 0px" (~2 screens) -- too close for a normal scroll
+ * speed to leave Google's ad server enough time to answer before the
+ * reader actually reached the card, so the native creative often hadn't
+ * painted yet and the card still read as a plain post for a beat.
+ * Widened to ~4 screens so the request is well in flight by the time the
+ * card is on screen; `requested` still guards a single push per mount. */
 const REQUEST_MARGIN = "2600px 0px";
 
 /**
@@ -87,7 +108,7 @@ const REQUEST_MARGIN = "2600px 0px";
  * and saved-posts list with ads.
  */
 export function InFeedAd({
-  slot = HOME_SLOT || DEFAULT_HOME_SLOT,
+  slot: slotProp,
   format = HOME_FORMAT,
   layoutKey = HOME_LAYOUT_KEY,
   ordinal,
@@ -98,10 +119,11 @@ export function InFeedAd({
   format?: InFeedAdFormat;
   /** `data-ad-layout-key` of an In-feed unit (fluid only). */
   layoutKey?: string;
-  /** 1-based position of this ad in the feed; only used to label the
-   * debug placeholder (?adsdebug=1). */
+  /** 1-based position of this ad in the feed; used to rotate between
+   * ad units and to label the debug placeholder (?adsdebug=1). */
   ordinal?: number;
 }) {
+  const slot = slotProp ?? pickHomeSlot(ordinal);
   const [enabled, setEnabled] = useState(false);
   useEffect(() => {
     setEnabled(isAdSenseConfigured(slot));
@@ -139,8 +161,8 @@ function InFeedAdUnit({
   // are true before the creative paints and when a mobile browser hides it.
   const { visible: rendered, detail: debugStatus } = useAdVisible(insRef);
   // Debug only (?adsdebug=1): a visible placeholder where the ad goes, so
-  // you can tell "the 2-posts-1-ad PLACEMENT works" apart from "Google
-  // returned no ad". Normal visitors never see it.
+  // you can tell "the ad PLACEMENT works" apart from "Google returned no
+  // ad". Normal visitors never see it.
   const [debug, setDebug] = useState(false);
   const native = format === "fluid";
 
@@ -153,16 +175,23 @@ function InFeedAdUnit({
     if (!card) return;
 
     const request = () => {
-      const ins = insRef.current;
-      if (!ins || requested.current) return;
+      if (requested.current) return;
       requested.current = true; // set first: no retry even if push throws
-      // Google stamps processed units; pushing one again throws.
-      if (ins.getAttribute("data-adsbygoogle-status")) return;
-      try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-      } catch (error) {
-        console.error("AdSense push failed", error);
-      }
+      // Staggered: avoids several same-slot-ID in-feed ads (common while
+      // scrolling a long feed) pushing to adsbygoogle in the same instant,
+      // which Google tends to answer with "filled" for only the first of
+      // the burst and "unfilled" for the rest.
+      queueAdRequest(() => {
+        const ins = insRef.current;
+        if (!ins) return;
+        // Google stamps processed units; pushing one again throws.
+        if (ins.getAttribute("data-adsbygoogle-status")) return;
+        try {
+          (window.adsbygoogle = window.adsbygoogle || []).push({});
+        } catch (error) {
+          console.error("AdSense push failed", error);
+        }
+      });
     };
 
     if (typeof IntersectionObserver === "undefined") {
