@@ -5,15 +5,16 @@ import { readAdDebugFlag } from "@/components/ads/adDebug";
 import { COLLAPSED_CLASS, useAdUnit } from "@/components/ads/useAdUnit";
 
 /**
- * A sponsored row for the Notifications list, shown at the full width of
- * the list under a one-line header that matches the density of a real
+ * A sponsored row for the Notifications list, showing a *horizontal*
+ * banner-style creative (320x100 on a phone) at the full width of the
+ * list, under a one-line header that matches the density of a real
  * notification row: small megaphone icon + "Sponsored" on the left,
  * "Advertisement" on the right (where a real row has its timestamp).
  *
- * It reuses the home-feed unit (6413880979), which is an In-feed (fluid)
- * unit -- it serves as `fluid` + full-width-responsive. Asking that unit
- * for `horizontal` is a format mismatch, so this requests `fluid` +
- * full-width-responsive, the way the unit works.
+ * Previously this asked for `fluid` + `in-article`, which is only valid
+ * for an In-article / In-feed unit with a layout key; on a normal Display
+ * unit that returns nothing. It now requests `horizontal`, which needs a
+ * responsive Display unit.
  *
  * Request / collapse behaviour lives in useAdUnit: one request near the
  * viewport, and the <li> stays out of the list (no divider line, no gap)
@@ -95,8 +96,7 @@ function NotificationAdUnit({ slot }: { slot: string }) {
           style={{ display: "block" }}
           data-ad-client={ADSENSE_CLIENT}
           data-ad-slot={slot}
-          data-ad-format="fluid"
-          data-full-width-responsive="true"
+          data-ad-format="horizontal"
         />
       </div>
     </li>

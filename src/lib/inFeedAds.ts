@@ -5,11 +5,10 @@
  * unit-testable -- see inFeedAds.test.ts.
  *
  * Rules:
- *  - one ad after every IN_FEED_AD_EVERY organic posts. At 4 the feed reads
- *    "post, post, post, post, ad, post, post, post, post, ad, ..." -- change
- *    the one number below to show ads more or less often (3-5 is gentler on
- *    readers and on AdSense's "excessive ads" policy review; 2 is the
- *    densest sensible setting);
+ *  - one ad after every IN_FEED_AD_EVERY organic posts. At 2 the feed reads
+ *    "post, post, ad, post, post, ad, ..." -- change the one number below to
+ *    show ads more or less often (3-5 is gentler on readers and on AdSense's
+ *    "excessive ads" policy review; 2 is the densest sensible setting);
  *  - never after the very last post, so the feed never ends on an ad with
  *    no organic content below it.
  */

@@ -105,7 +105,7 @@ function NotificationsPage() {
               <Fragment key={`${n.kind}-${n.id}`}>
                 {/* One sponsored row per 8-notification cycle — same
                     density as a real row, see NotificationAd. */}
-                {idx > 0 && idx % 8 === 0 && <NotificationAd />}
+                {idx > 0 && idx % 6 === 0 && <NotificationAd />}
                 <li>
                   <Link
                     {...n.link}
