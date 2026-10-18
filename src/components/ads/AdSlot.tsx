@@ -97,7 +97,7 @@ function AdSlotInner({
   slot: slotProp,
   className = "",
   label = "Sponsored",
-  format: formatProp = "auto",
+  format: formatProp = "fluid",
 }: {
   /** Numeric ad unit ID from the AdSense dashboard. */
   slot: string;
