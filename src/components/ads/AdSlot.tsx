@@ -66,18 +66,24 @@ export function isAdSenseConfigured(slot: string): boolean {
 }
 
 /**
- * Each page passes its own ad unit ID (see the AdSense dashboard names:
- * Channel page, Stands channels, Stands journal, Search discover grid,
- * Search results, Article bottom). They are requested as standard
- * RESPONSIVE Display ads (data-ad-format="auto" +
- * data-full-width-responsive). Only the two Jobs placements (jobs.tsx
- * and job.$id.tsx) ask for a HORIZONTAL banner (format="horizontal").
+ * FIX: the only ad unit that actually serves on this site is the home
+ * in-feed unit 6413880979 (Home, Updates and Notifications all use it and
+ * show ads). The six per-page units passed to <AdSlot slot="..."/> across
+ * Search, Jobs, Job/Post detail, Channel, Journal and Stands are not
+ * returning ads, whatever format is requested. So every AdSlot now uses
+ * the proven unit, in the proven format (fluid + full-width-responsive,
+ * no layout key), and ignores its own `slot` prop.
  *
- * Emergency switch: set VITE_ADSENSE_SHARED_SLOT=<unit id> in Vercel
- * (e.g. 6413880979) and every AdSlot will use that one unit as an in-feed
- * (fluid) ad instead of its own. Leave it unset for normal operation.
+ * To go back to the per-page units later (once they are serving), set
+ * VITE_ADSENSE_USE_OWN_SLOTS=true in Vercel and redeploy. To use a
+ * different shared unit, set VITE_ADSENSE_SHARED_SLOT=<unit id>.
  */
-const SHARED_SLOT = (import.meta.env.VITE_ADSENSE_SHARED_SLOT as string | undefined)?.trim() || "";
+const SHARED_SLOT =
+  (import.meta.env.VITE_ADSENSE_SHARED_SLOT as string | undefined)?.trim() || "6413880979";
+const USE_OWN_SLOTS =
+  (import.meta.env.VITE_ADSENSE_USE_OWN_SLOTS as string | undefined)?.trim() === "true";
+/** Only used in USE_OWN_SLOTS mode (the old per-page units). */
+const AD_LAYOUT_KEY = "-fb+5w+4e-db+86";
 
 export type AdSlotFormat = "fluid" | "horizontal" | "rectangle" | "auto";
 
@@ -90,8 +96,9 @@ export type AdSlotFormat = "fluid" | "horizontal" | "rectangle" | "auto";
  * the viewport; invisible and out of the layout until Google reports the
  * ad as filled; never unmounted by a timeout).
  *
- * `format` defaults to "auto" (responsive Display). The Jobs pages pass
- * format="horizontal" explicitly.
+ * By default every AdSlot uses the shared, proven unit (see SHARED_SLOT)
+ * as a fluid + full-width-responsive ad. The `slot` and `format` props
+ * only take effect when VITE_ADSENSE_USE_OWN_SLOTS=true.
  */
 function AdSlotInner({
   slot: slotProp,
@@ -111,9 +118,9 @@ function AdSlotInner({
   // it is false on the server and true on the client -- rendering the
   // card straight away would make server and client HTML disagree.
   const [enabled, setEnabled] = useState(false);
-  // Own unit + format, unless the emergency shared-unit switch is set.
-  const slot = SHARED_SLOT || slotProp;
-  const format: AdSlotFormat = SHARED_SLOT ? "fluid" : formatProp;
+  // Shared proven unit + format unless per-page units are switched on.
+  const slot = USE_OWN_SLOTS ? slotProp : SHARED_SLOT;
+  const format: AdSlotFormat = USE_OWN_SLOTS ? formatProp : "fluid";
   // FIX: on localhost / with a placeholder slot, this component used to
   // just return null everywhere -- every AdSlot-based page (Jobs, Search,
   // Job/Post detail, Stands tabs, Showcase) looked like it had no ad
@@ -211,6 +218,9 @@ function AdSlotUnit({
           data-ad-format={format}
           {...(format === "auto" || format === "fluid"
             ? { "data-full-width-responsive": "true" }
+            : {})}
+          {...(USE_OWN_SLOTS && format === "fluid"
+            ? { "data-ad-layout-key": AD_LAYOUT_KEY }
             : {})}
         />
       </div>
