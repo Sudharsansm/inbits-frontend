@@ -143,7 +143,7 @@ function JobPage() {
             Create a dedicated "Job detail" unit later if you want to
             track this surface separately in AdSense. */}
         <div className="mt-8">
-          <AdSlot slot="4019651928" label="Sponsored" />
+          <AdSlot slot="4019651928" label="Sponsored" format="horizontal" />
         </div>
 
         <div className="py-10 text-center text-[11px] text-muted-foreground">

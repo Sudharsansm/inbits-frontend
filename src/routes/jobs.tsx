@@ -93,7 +93,7 @@ function Jobs() {
                     and this list's children must all be <li> elements. */}
                 {idx > 0 && idx % 4 === 0 && (
                   <li className="list-none">
-                    <AdSlot slot="6051024090" label="Sponsored" />
+                    <AdSlot slot="6051024090" label="Sponsored" format="horizontal"/>
                   </li>
                 )}
                 <JobCard job={j} saved={has(j.id)} onToggleSave={() => toggle(j.id)} />
