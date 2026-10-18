@@ -46,7 +46,7 @@ export function JournalTab({
         <ul className="mt-4 space-y-3">
           {openCategory.articles.map((a, idx) => (
             <li key={a.id}>
-              {idx > 0 && idx % 3 === 0 && <AdSlot slot="1589034906" />}
+              {idx > 0 && idx % 5 === 0 && <AdSlot slot="1589034906" />}
               <button
                 onClick={() =>
                   openArticle({
